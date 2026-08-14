@@ -20,6 +20,7 @@ require_command cmp
 require_command mkdir
 require_command ln
 require_command chmod
+require_command mv
 
 if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit((major === 22 && minor >= 19) || major >= 24 ? 0 : 1)'; then
   fail "unsupported Node.js $(node --version); expected ^22.19.0 or >=24.0.0"
@@ -27,6 +28,8 @@ fi
 
 EXPECTED_PNPM=$(node -p "require('$ROOT/package.json').packageManager.split('@').pop()")
 EXPECTED_DSH=$(node -p "require('$ROOT/package.json').dependencies['@deepseek-ai/dsh']")
+PROFILE_PACKAGE="$ROOT/profiles/engineering/package.json"
+PROFILE_RUNTIME_PACKAGES='@deepseek-ai/dsh-terminal @deepseek-ai/dsh-terminal-bash @deepseek-ai/dsh-tool-terminal'
 
 if command -v pnpm >/dev/null 2>&1 && [ "$(pnpm --version)" = "$EXPECTED_PNPM" ]; then
   info "pnpm $EXPECTED_PNPM already active"
@@ -45,6 +48,16 @@ if ! REGISTRY_DSH=$(pnpm view "@deepseek-ai/dsh@$EXPECTED_DSH" version 2>/dev/nu
   fail "pinned @deepseek-ai/dsh@$EXPECTED_DSH is not available from the configured npm registry"
 fi
 [ "$REGISTRY_DSH" = "$EXPECTED_DSH" ] || fail "registry resolved unexpected DSH version: expected $EXPECTED_DSH, got $REGISTRY_DSH"
+
+info 'verifying pinned engineering profile runtime dependencies exist in the npm registry'
+for pkg in $PROFILE_RUNTIME_PACKAGES; do
+  expected=$(node -p "require('$PROFILE_PACKAGE').dependencies['$pkg'] || ''")
+  [ -n "$expected" ] || fail "engineering profile does not pin required runtime dependency: $pkg"
+  if ! actual=$(pnpm view "$pkg@$expected" version 2>/dev/null); then
+    fail "pinned profile runtime dependency $pkg@$expected is not available from the configured npm registry"
+  fi
+  [ "$actual" = "$expected" ] || fail "registry resolved unexpected $pkg version: expected $expected, got $actual"
+done
 
 info "installing repository dependencies"
 cd "$ROOT"
@@ -72,8 +85,13 @@ case "$ACTUAL_DSH" in
   *) fail "dsh version mismatch: expected $EXPECTED_DSH, got $ACTUAL_DSH" ;;
 esac
 
-DSH_HOME=${DSH_HOME:-"$HOME/.dsh"}
 PROFILE_SRC="$ROOT/profiles/engineering"
+info 'installing engineering profile runtime dependencies from the canonical locked workspace graph'
+for pkg in $PROFILE_RUNTIME_PACKAGES; do
+  [ -e "$PROFILE_SRC/node_modules/$pkg" ] || fail "profile runtime dependency missing after pnpm install: $pkg"
+done
+
+DSH_HOME=${DSH_HOME:-"$HOME/.dsh"}
 PROFILE_DST="$DSH_HOME/profiles/engineering"
 PRESET_SRC="$ROOT/agent-presets/matspectrum-engineering"
 PRESET_DST="$DSH_HOME/.agent-presets/matspectrum-engineering"
@@ -110,6 +128,27 @@ info "materializing canonical engineering profile into $PROFILE_DST"
 for name in package.json cordis.patch.yml pnpm-workspace.yaml; do
   sync_runtime_file "$PROFILE_SRC/$name" "$PROFILE_DST/$name" "profile-$name" "profile file"
 done
+
+PROFILE_NODE_MODULES_SRC="$PROFILE_SRC/node_modules"
+PROFILE_NODE_MODULES_DST="$PROFILE_DST/node_modules"
+expected_modules_target=$(readlink -f "$PROFILE_NODE_MODULES_SRC" 2>/dev/null || true)
+if [ -L "$PROFILE_NODE_MODULES_DST" ]; then
+  current_modules_target=$(readlink -f "$PROFILE_NODE_MODULES_DST" 2>/dev/null || true)
+  if [ "$current_modules_target" != "$expected_modules_target" ]; then
+    ensure_backup_dir
+    mv "$PROFILE_NODE_MODULES_DST" "$BACKUP_DIR/profile-node_modules"
+    ln -s "$PROFILE_NODE_MODULES_SRC" "$PROFILE_NODE_MODULES_DST"
+    info 'replaced divergent profile node_modules link'
+  fi
+elif [ -e "$PROFILE_NODE_MODULES_DST" ]; then
+  ensure_backup_dir
+  mv "$PROFILE_NODE_MODULES_DST" "$BACKUP_DIR/profile-node_modules"
+  ln -s "$PROFILE_NODE_MODULES_SRC" "$PROFILE_NODE_MODULES_DST"
+  info 'backed up unmanaged profile node_modules and installed managed link'
+else
+  ln -s "$PROFILE_NODE_MODULES_SRC" "$PROFILE_NODE_MODULES_DST"
+  info 'installed managed engineering profile node_modules link'
+fi
 
 info "materializing canonical matspectrum-engineering preset into $PRESET_DST"
 for name in agent.cordis.yml preset.yml; do
