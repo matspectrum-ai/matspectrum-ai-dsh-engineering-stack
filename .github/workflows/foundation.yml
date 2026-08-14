@@ -48,8 +48,8 @@ jobs:
           actual=$(pnpm view "@deepseek-ai/dsh@$expected" version)
           test "$actual" = "$expected"
 
-      - name: Install pinned runtime
-        run: pnpm install --no-frozen-lockfile
+      - name: Install pinned runtime from canonical lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Verify installed DSH version
         run: |
