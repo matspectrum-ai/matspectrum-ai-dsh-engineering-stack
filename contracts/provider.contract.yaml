@@ -1,0 +1,37 @@
+contract: model-provider
+version: 1
+
+required_fields:
+  provider_id: string
+  protocol: enum[openai-completions]
+  base_url: uri
+  credential_ref: env-var-name
+  default_model: string
+
+invariants:
+  - provider_id == omniroute
+  - base_url == http://127.0.0.1:20128/v1
+  - credential_ref == OMNIROUTE_API_KEY
+  - default_model == auto/best-coding
+  - no literal credential value is stored in repository configuration
+  - provider health is checked independently from DSH process health
+  - model existence is checked against /v1/models before end-to-end validation
+
+failure_modes:
+  missing_credential:
+    classification: configuration
+    behavior: warn in general doctor; fail end-to-end provider gate
+  endpoint_unreachable:
+    classification: dependency-unavailable
+    behavior: warn in general doctor; fail end-to-end provider gate
+  invalid_json:
+    classification: protocol
+    behavior: warn in general doctor; fail end-to-end provider gate
+  default_model_missing:
+    classification: configuration-drift
+    behavior: fail provider validation
+
+security:
+  secret_boundary: environment
+  allowed_endpoint_scope: loopback
+  implicit_credential_fallback: forbidden
