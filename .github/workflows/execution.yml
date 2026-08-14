@@ -36,6 +36,17 @@ jobs:
           corepack prepare pnpm@11.7.0 --activate
           test "$(pnpm --version)" = "11.7.0"
 
+      - name: Verify published profile runtime packages
+        run: |
+          for pkg in \
+            @deepseek-ai/dsh-terminal \
+            @deepseek-ai/dsh-terminal-bash \
+            @deepseek-ai/dsh-tool-terminal
+          do
+            version=$(node -p "require('./profiles/engineering/package.json').dependencies['$pkg']")
+            test "$(pnpm view "$pkg@$version" version)" = "$version"
+          done
+
       - name: Install canonical runtime graph
         run: pnpm install --frozen-lockfile
 
