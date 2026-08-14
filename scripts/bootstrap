@@ -59,10 +59,20 @@ fi
 
 info "installing repository dependencies"
 cd "$ROOT"
-if [ -f pnpm-lock.yaml ]; then
+LOCKFILE_TRACKED=false
+if command -v git >/dev/null 2>&1 && git -C "$ROOT" ls-files --error-unmatch pnpm-lock.yaml >/dev/null 2>&1; then
+  LOCKFILE_TRACKED=true
+fi
+
+if [ "$LOCKFILE_TRACKED" = true ]; then
+  [ -f pnpm-lock.yaml ] || fail "pnpm-lock.yaml is tracked by Git but missing from the working tree"
   pnpm install --frozen-lockfile
 else
-  printf 'WARN: pnpm-lock.yaml is not committed yet; installing from exact direct pins for this foundation cycle.\n' >&2
+  if [ -f pnpm-lock.yaml ]; then
+    printf 'WARN: local untracked pnpm-lock.yaml is not canonical yet; refreshing it from exact direct pins.\n' >&2
+  else
+    printf 'WARN: pnpm-lock.yaml is not committed yet; installing from exact direct pins for this foundation cycle.\n' >&2
+  fi
   pnpm install --no-frozen-lockfile
 fi
 
