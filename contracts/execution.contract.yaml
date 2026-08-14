@@ -1,0 +1,156 @@
+contract: execution-capabilities
+version: 1
+status: draft
+
+planes:
+  host:
+    owns:
+      - subprocess-registry
+      - sandbox-service
+      - sandbox-policy
+      - approval-service
+      - permission-presets
+      - shell-environment
+      - jobs-registry
+      - terminal-registry
+      - terminal-backend
+  agent_preset:
+    id: matspectrum-engineering
+    owns:
+      - one-shot-bash-tool
+      - job-control-tools
+      - terminal-tools
+      - existing-standard-coding-tools
+
+one_shot_bash:
+  package: '@deepseek-ai/dsh-tool-bash'
+  required: true
+  platform: linux
+  state_persistence_across_calls: false
+  preferred_for:
+    - deterministic commands
+    - bounded commands
+    - tests
+    - builds
+    - git inspection
+    - non-interactive CLI operations
+  background_jobs:
+    supported: true
+    registry_must_be_host_owned: true
+
+persistent_terminal:
+  registry_package: '@deepseek-ai/dsh-terminal'
+  backend_package: '@deepseek-ai/dsh-terminal-bash'
+  tool_package: '@deepseek-ai/dsh-tool-terminal'
+  backend_type: shell
+  required_tools:
+    - terminal_open
+    - terminal_send
+    - terminal_read
+    - terminal_signal
+    - terminal_close
+    - terminal_list
+  ownership:
+    exact_agent_only: true
+    cross_agent_session_access: false
+  use_only_when:
+    - terminal_state_must_persist
+    - interactive_stdin_is_required
+    - a long_running_process_needs_a_live_session
+  cleanup:
+    explicit_close_expected: true
+    process_shutdown_must_cleanup: true
+  background_jobs:
+    supported: true
+    controls:
+      - job_output
+      - job_list
+      - job_kill
+
+agent_preset:
+  canonical_id: matspectrum-engineering
+  source_path: agent-presets/matspectrum-engineering/agent.cordis.yml
+  metadata_path: agent-presets/matspectrum-engineering/preset.yml
+  derivation:
+    upstream_preset: standard
+    dsh_version: 0.1.0-rc.6
+    drift_review_required_on_runtime_upgrade: true
+  default_for_engineering_profile: true
+  must_retain:
+    - tool-bash
+    - tool-jobs
+    - tool-fs
+    - tool-fs-search
+    - skill-filesystem
+    - tool-skill
+    - plan-mode
+    - tool-subagent
+    - tool-workflow
+    - tool-ralph
+
+external_cli:
+  states:
+    - missing
+    - installed_unauthenticated
+    - authenticated
+    - authentication_unknown
+  git:
+    executable: git
+    required: true
+    authentication: not_applicable
+  github:
+    executable: gh
+    required: false
+    authentication_probe: 'gh auth status'
+    probe_must_not_mutate: true
+  supabase:
+    executable: supabase
+    required: false
+    authentication_probe_contract: non_mutating_if_supported
+  vercel:
+    executable: vercel
+    required: false
+    authentication_probe_contract: non_mutating_if_supported
+  rules:
+    executable_presence_does_not_imply_authentication: true
+    credential_values_must_not_be_logged: true
+    credential_values_must_not_be_committed: true
+
+permission_boundary:
+  default_mode: workspace-write
+  approval_policy: ask
+  danger_full_access_default: false
+  pty_must_use_same_boundary_as_shell: true
+  network_access_must_not_be_assumed: true
+  outside_workspace_write_must_not_be_silent: true
+
+verification:
+  static:
+    - engineering profile references repository preset root
+    - engineering profile selects matspectrum-engineering by default
+    - profile patch mounts terminal registry
+    - profile patch mounts terminal bash backend
+    - preset exposes terminal tool package
+    - preset retains one-shot bash and jobs
+  runtime:
+    - dsh profile dump succeeds
+    - Web UI boot succeeds
+    - bash command returns expected output
+    - terminal session retains cwd or environment state across two sends
+    - terminal session closes cleanly
+    - job registry exposes background work when requested
+  target_machine:
+    - git detected
+    - optional CLIs classified separately from authentication
+
+failure_contracts:
+  missing_native_pty:
+    behavior: explicit_failure
+  broken_preset:
+    behavior: fail_before_agent_session_executes
+  terminal_timeout:
+    behavior: bounded_partial_output_and_uncertain_state_report
+  cli_missing:
+    behavior: doctor_capability_failure_or_warning_according_to_required_flag
+  cli_unauthenticated:
+    behavior: doctor_reports_unauthenticated_without_printing_credentials
