@@ -1,0 +1,52 @@
+name: Execution Capabilities
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  execution-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate shell syntax
+        run: |
+          sh -n tests/acceptance/execution_contract.sh
+          sh -n scripts/bootstrap
+          sh -n scripts/doctor
+          sh -n bin/dsh-engineering
+
+      - name: Run Phase 2 acceptance contract
+        run: sh tests/acceptance/execution_contract.sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Activate pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+          test "$(pnpm --version)" = "11.7.0"
+
+      - name: Install canonical runtime graph
+        run: pnpm install --frozen-lockfile
+
+      - name: Bootstrap isolated engineering runtime
+        run: |
+          DSH_HOME="$RUNNER_TEMP/dsh-home" \
+          DSH_ENGINEERING_BIN_DIR="$RUNNER_TEMP/bin" \
+          ./scripts/bootstrap
+
+      - name: Verify isolated doctor
+        run: |
+          DSH_HOME="$RUNNER_TEMP/dsh-home" \
+          DSH_ENGINEERING_BIN_DIR="$RUNNER_TEMP/bin" \
+          ./scripts/doctor
