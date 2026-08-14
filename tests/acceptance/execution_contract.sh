@@ -37,6 +37,16 @@ require_text 'profiles/engineering/cordis.patch.yml' "name: '@deepseek-ai/dsh-te
 require_text 'profiles/engineering/cordis.patch.yml' 'default: matspectrum-engineering' 'profile selects canonical engineering preset by default'
 require_text 'profiles/engineering/cordis.patch.yml' 'includeUserRoot: true' 'profile keeps DSH user preset root enabled'
 
+# Loader entries in a user-owned preset resolve from the profile runtime, not
+# merely from the repository DSH installation. These exact dependencies are a
+# runtime contract: dump-config alone does not prove that session creation can
+# import them.
+require_text 'profiles/engineering/package.json' '"@deepseek-ai/dsh-tool-terminal"' 'profile declares terminal tool loader dependency'
+require_text 'profiles/engineering/package.json' '"@deepseek-ai/dsh-terminal"' 'profile declares terminal registry loader dependency'
+require_text 'profiles/engineering/package.json' '"@deepseek-ai/dsh-terminal-bash"' 'profile declares Bash PTY backend loader dependency'
+require_text 'scripts/bootstrap' 'installing engineering profile runtime dependencies' 'bootstrap installs profile-local loader dependencies'
+require_text 'scripts/doctor' 'profile runtime dependency' 'doctor verifies profile-local loader resolution'
+
 require_text 'profiles/engineering/cordis.patch.yml' 'provider: omniroute' 'profile selects OmniRoute as default provider'
 require_text 'profiles/engineering/cordis.patch.yml' 'model: auto/best-coding' 'profile selects auto/best-coding as default model'
 require_text 'profiles/engineering/cordis.patch.yml' 'apiKeyEnv: OMNIROUTE_API_KEY' 'profile references OmniRoute credential by environment name only'
