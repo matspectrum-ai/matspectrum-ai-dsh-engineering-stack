@@ -1,0 +1,104 @@
+feature: reproducible-dsh-engineering-stack
+status: draft
+schema_version: 1
+
+objectives:
+  - make DeepSeek Harness the primary coding-agent runtime
+  - make the complete engineering environment reproducible from Git
+  - preserve engineering methodology independently from the runtime implementation
+  - support local terminal-first work and secure mobile access
+  - enforce specification-first, contract-driven, test-first delivery
+  - support structured multi-agent graph orchestration with explicit verification gates
+
+source_of_truth:
+  repository: matspectrum-ai/matspectrum-ai-dsh-engineering-stack
+  upstream_runtime: deepseek-ai/deepseek-harness
+  runtime_role: dependency
+  methodology_role: repository_owned
+
+requirements:
+  reproducibility:
+    - pin runtime and managed tool versions
+    - bootstrap a supported clean machine deterministically
+    - make bootstrap idempotent
+    - provide a doctor command with machine-readable exit status
+    - provide controlled update and rollback procedures
+  runtime:
+    - support named dsh profiles
+    - support one-shot shell execution
+    - support persistent PTY sessions
+    - support background jobs
+    - support filesystem editing
+    - support session persistence and resume
+  intelligence:
+    - support filesystem-discovered skills
+    - support language-server integration
+    - support MCP servers over supported transports
+    - support subagents with explicit roles
+  engineering_method:
+    - require problem analysis before solution design
+    - require a specification before implementation
+    - require explicit contracts for behavior and interfaces
+    - require failing tests before production implementation
+    - require Red -> Green -> Refactor
+    - require verification before completion
+  orchestration:
+    - model complex work as explicit nodes and transitions
+    - keep planning, implementation, review, security, and verification roles separable
+    - define deterministic gates between graph stages
+    - define retry and failure behavior explicitly
+  external_cli:
+    - allow configured execution of git
+    - allow configured execution of gh
+    - allow configured execution of package-manager CLIs
+    - allow configured execution of Supabase CLI
+    - allow configured execution of Vercel CLI
+    - never assume a CLI is installed or authenticated
+  mobile:
+    - keep the DSH web service bound to loopback unless an audited upstream capability changes the contract
+    - provide access through an authenticated private transport or authenticated reverse proxy
+    - never expose an unauthenticated agent control plane directly to the public internet
+  security:
+    - never commit secrets
+    - do not enable unrestricted host access globally
+    - default to least privilege
+    - make elevated operations explicit and observable
+    - separate production credentials from development credentials
+
+acceptance_criteria:
+  - a clean supported machine can clone the repository and pass bootstrap
+  - the installed DSH version equals the pinned manifest version
+  - the engineering profile can be dumped and validated
+  - project and user skills are discoverable
+  - one-shot shell commands execute under the configured permission boundary
+  - persistent PTY sessions preserve process state across tool calls
+  - configured MCP tools are discoverable without embedding secrets in Git
+  - configured language servers respond for supported languages
+  - graph workflow stages cannot bypass required specification and test gates
+  - doctor reports missing CLIs, credentials, MCPs, and language servers distinctly
+  - mobile access works without binding the agent control plane directly to a public interface
+  - reinstalling bootstrap does not corrupt an existing valid installation
+
+edge_cases:
+  - unsupported Node.js version
+  - upstream DSH breaking change
+  - package registry unavailable
+  - shell executable missing from PATH
+  - CLI installed but unauthenticated
+  - MCP process exits during startup
+  - MCP server becomes unavailable during a task
+  - language server executable missing
+  - PTY process hangs or becomes orphaned
+  - interrupted bootstrap
+  - partially configured machine
+  - existing DSH installation from a different package manager
+  - stale symlink into a previous checkout
+  - secret accidentally placed in a versioned config path
+  - mobile private-network transport unavailable
+  - graph node fails after producing partial artifacts
+
+non_goals:
+  - forking DeepSeek Harness without a demonstrated upstream limitation
+  - storing API keys or OAuth tokens in the repository
+  - treating unrestricted host execution as the default
+  - coupling reusable engineering skills to a single model provider
