@@ -1,0 +1,31 @@
+name: Foundation Contract
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate shell syntax
+        run: |
+          sh -n tests/acceptance/stack_contract.sh
+          sh -n scripts/bootstrap
+          sh -n scripts/doctor
+          sh -n bin/dsh-engineering
+
+      - name: Validate executable contracts
+        run: |
+          test "$(git ls-files -s scripts/bootstrap | awk '{print $1}')" = "100755"
+          test "$(git ls-files -s scripts/doctor | awk '{print $1}')" = "100755"
+          test "$(git ls-files -s bin/dsh-engineering | awk '{print $1}')" = "100755"
+
+      - name: Run foundation acceptance contract
+        run: sh tests/acceptance/stack_contract.sh
