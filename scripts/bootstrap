@@ -4,25 +4,14 @@ set -eu
 SCRIPT_PATH=$0
 if command -v readlink >/dev/null 2>&1; then
   resolved=$(readlink -f "$SCRIPT_PATH" 2>/dev/null || true)
-  if [ -n "$resolved" ]; then
-    SCRIPT_PATH=$resolved
-  fi
+  if [ -n "$resolved" ]; then SCRIPT_PATH=$resolved; fi
 fi
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$SCRIPT_PATH")" && pwd)
 ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 
-fail() {
-  printf 'ERROR: %s\n' "$1" >&2
-  exit 1
-}
-
-info() {
-  printf '==> %s\n' "$1"
-}
-
-require_command() {
-  command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
-}
+fail() { printf 'ERROR: %s\n' "$1" >&2; exit 1; }
+info() { printf '==> %s\n' "$1"; }
+require_command() { command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"; }
 
 require_command node
 require_command npm
@@ -30,6 +19,7 @@ require_command cp
 require_command cmp
 require_command mkdir
 require_command ln
+require_command chmod
 
 if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit((major === 22 && minor >= 19) || major >= 24 ? 0 : 1)'; then
   fail "unsupported Node.js $(node --version); expected ^22.19.0 or >=24.0.0"
@@ -48,7 +38,6 @@ else
     npm install --global "pnpm@$EXPECTED_PNPM"
   fi
 fi
-
 [ "$(pnpm --version)" = "$EXPECTED_PNPM" ] || fail "pnpm version mismatch after activation"
 
 info "verifying pinned DSH $EXPECTED_DSH exists in the npm registry"
@@ -63,7 +52,6 @@ LOCKFILE_TRACKED=false
 if command -v git >/dev/null 2>&1 && git -C "$ROOT" ls-files --error-unmatch pnpm-lock.yaml >/dev/null 2>&1; then
   LOCKFILE_TRACKED=true
 fi
-
 if [ "$LOCKFILE_TRACKED" = true ]; then
   [ -f pnpm-lock.yaml ] || fail "pnpm-lock.yaml is tracked by Git but missing from the working tree"
   pnpm install --frozen-lockfile
@@ -71,7 +59,7 @@ else
   if [ -f pnpm-lock.yaml ]; then
     printf 'WARN: local untracked pnpm-lock.yaml is not canonical yet; refreshing it from exact direct pins.\n' >&2
   else
-    printf 'WARN: pnpm-lock.yaml is not committed yet; installing from exact direct pins for this foundation cycle.\n' >&2
+    printf 'WARN: pnpm-lock.yaml is not committed yet; installing from exact direct pins.\n' >&2
   fi
   pnpm install --no-frozen-lockfile
 fi
@@ -87,34 +75,47 @@ esac
 DSH_HOME=${DSH_HOME:-"$HOME/.dsh"}
 PROFILE_SRC="$ROOT/profiles/engineering"
 PROFILE_DST="$DSH_HOME/profiles/engineering"
-mkdir -p "$PROFILE_DST"
+PRESET_SRC="$ROOT/agent-presets/matspectrum-engineering"
+PRESET_DST="$DSH_HOME/.agent-presets/matspectrum-engineering"
+
+mkdir -p "$PROFILE_DST" "$PRESET_DST"
+chmod 700 "$PRESET_DST"
 
 STAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP_DIR=""
 
-sync_profile_file() {
-  name=$1
-  src="$PROFILE_SRC/$name"
-  dst="$PROFILE_DST/$name"
-
-  [ -f "$src" ] || fail "canonical profile file missing: $src"
-
-  if [ -f "$dst" ] && ! cmp -s "$src" "$dst"; then
-    if [ -z "$BACKUP_DIR" ]; then
-      BACKUP_DIR="$DSH_HOME/backups/engineering-$STAMP"
-      mkdir -p "$BACKUP_DIR"
-    fi
-    cp -p "$dst" "$BACKUP_DIR/$name"
-    info "backed up divergent profile file: $dst"
+ensure_backup_dir() {
+  if [ -z "$BACKUP_DIR" ]; then
+    BACKUP_DIR="$DSH_HOME/backups/engineering-$STAMP"
+    mkdir -p "$BACKUP_DIR"
   fi
+}
 
+sync_runtime_file() {
+  src=$1
+  dst=$2
+  backup_name=$3
+  description=$4
+
+  [ -f "$src" ] || fail "canonical file missing: $src"
+  if [ -f "$dst" ] && ! cmp -s "$src" "$dst"; then
+    ensure_backup_dir
+    cp -p "$dst" "$BACKUP_DIR/$backup_name"
+    info "backed up divergent $description: $dst"
+  fi
   cp "$src" "$dst"
 }
 
 info "materializing canonical engineering profile into $PROFILE_DST"
-sync_profile_file package.json
-sync_profile_file cordis.patch.yml
-sync_profile_file pnpm-workspace.yaml
+for name in package.json cordis.patch.yml pnpm-workspace.yaml; do
+  sync_runtime_file "$PROFILE_SRC/$name" "$PROFILE_DST/$name" "profile-$name" "profile file"
+done
+
+info "materializing canonical matspectrum-engineering preset into $PRESET_DST"
+for name in agent.cordis.yml preset.yml; do
+  sync_runtime_file "$PRESET_SRC/$name" "$PRESET_DST/$name" "preset-$name" "agent preset file"
+  chmod 600 "$PRESET_DST/$name"
+done
 
 info "validating composed engineering profile"
 DSH_HOME="$DSH_HOME" "$DSH_BIN" --profile engineering --dump-config >/dev/null
