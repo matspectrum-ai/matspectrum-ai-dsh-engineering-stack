@@ -66,6 +66,7 @@ require_file 'profiles/engineering/cordis.patch.yml' 'engineering profile patch 
 require_file 'profiles/engineering/pnpm-workspace.yaml' 'engineering profile pnpm settings exist'
 require_executable 'scripts/bootstrap' 'bootstrap entrypoint exists and is executable'
 require_text 'scripts/bootstrap' 'pnpm view "@deepseek-ai/dsh@$EXPECTED_DSH" version' 'bootstrap verifies pinned DSH exists in registry before install'
+require_text 'scripts/bootstrap' 'git -C "$ROOT" ls-files --error-unmatch pnpm-lock.yaml' 'bootstrap freezes only a Git-tracked canonical lockfile'
 require_executable 'scripts/doctor' 'doctor entrypoint exists and is executable'
 require_executable 'bin/dsh-engineering' 'canonical DSH engineering launcher exists and is executable'
 require_file 'AGENTS.md' 'repository engineering governance exists'
