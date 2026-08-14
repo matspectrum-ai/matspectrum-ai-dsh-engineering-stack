@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_PATH=$0
+if command -v readlink >/dev/null 2>&1; then
+  resolved=$(readlink -f "$SCRIPT_PATH" 2>/dev/null || true)
+  if [ -n "$resolved" ]; then
+    SCRIPT_PATH=$resolved
+  fi
+fi
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$SCRIPT_PATH")" && pwd)
+ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+DSH_BIN="$ROOT/node_modules/.bin/dsh"
+DSH_HOME=${DSH_HOME:-"$HOME/.dsh"}
+PROFILE_DIR="$DSH_HOME/profiles/engineering"
+
+if [ ! -x "$DSH_BIN" ]; then
+  printf 'dsh-engineering: local DSH runtime is not installed. Run: %s/scripts/bootstrap\n' "$ROOT" >&2
+  exit 1
+fi
+
+if [ ! -f "$PROFILE_DIR/package.json" ]; then
+  printf 'dsh-engineering: engineering profile is not materialized. Run: %s/scripts/bootstrap\n' "$ROOT" >&2
+  exit 1
+fi
+
+export DSH_HOME
+exec "$DSH_BIN" --profile engineering "$@"

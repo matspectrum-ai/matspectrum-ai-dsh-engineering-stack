@@ -1,0 +1,22 @@
+schema_version: 1
+
+stack:
+  version: "0.1.0"
+
+runtime:
+  package: "@deepseek-ai/dsh"
+  version: "0.1.0-rc.5"
+  upstream_repository: "deepseek-ai/deepseek-harness"
+  upstream_release_commit: "47f943859bef60e4160492346772ded9b24f765a"
+
+node:
+  supported: "^22.19.0 || >=24.0.0"
+
+package_manager:
+  name: "pnpm"
+  version: "11.7.0"
+
+policy:
+  direct_runtime_dependency_must_be_exact: true
+  package_manager_must_be_exact: true
+  upstream_update_requires_acceptance_tests: true

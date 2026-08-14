@@ -1,0 +1,145 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_PATH=$0
+if command -v readlink >/dev/null 2>&1; then
+  resolved=$(readlink -f "$SCRIPT_PATH" 2>/dev/null || true)
+  if [ -n "$resolved" ]; then
+    SCRIPT_PATH=$resolved
+  fi
+fi
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$SCRIPT_PATH")" && pwd)
+ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+
+failures=0
+warnings=0
+
+pass() {
+  printf 'PASS: %s\n' "$1"
+}
+
+warn() {
+  printf 'WARN: %s\n' "$1" >&2
+  warnings=$((warnings + 1))
+}
+
+fail() {
+  printf 'FAIL: %s\n' "$1" >&2
+  failures=$((failures + 1))
+}
+
+check_command() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+printf '%s\n' 'DSH Engineering Stack Doctor'
+printf '%s\n' '----------------------------'
+
+if check_command node; then
+  NODE_VERSION=$(node --version)
+  if node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit((major === 22 && minor >= 19) || major >= 24 ? 0 : 1)'; then
+    pass "Node.js $NODE_VERSION is supported"
+  else
+    fail "Node.js $NODE_VERSION is unsupported; expected ^22.19.0 or >=24.0.0"
+  fi
+else
+  fail 'Node.js is not installed'
+fi
+
+if check_command node; then
+  EXPECTED_PNPM=$(node -p "require('$ROOT/package.json').packageManager.split('@').pop()")
+  EXPECTED_DSH=$(node -p "require('$ROOT/package.json').dependencies['@deepseek-ai/dsh']")
+else
+  EXPECTED_PNPM='unknown'
+  EXPECTED_DSH='unknown'
+fi
+
+if check_command pnpm; then
+  ACTUAL_PNPM=$(pnpm --version)
+  if [ "$ACTUAL_PNPM" = "$EXPECTED_PNPM" ]; then
+    pass "pnpm $ACTUAL_PNPM matches the pinned version"
+  else
+    fail "pnpm $ACTUAL_PNPM does not match pinned $EXPECTED_PNPM"
+  fi
+else
+  fail 'pnpm is not installed'
+fi
+
+DSH_BIN="$ROOT/node_modules/.bin/dsh"
+if [ -x "$DSH_BIN" ]; then
+  ACTUAL_DSH=$($DSH_BIN --version 2>&1)
+  case "$ACTUAL_DSH" in
+    *"$EXPECTED_DSH"*) pass "local DSH runtime matches pinned $EXPECTED_DSH" ;;
+    *) fail "local DSH runtime mismatch: expected $EXPECTED_DSH, got $ACTUAL_DSH" ;;
+  esac
+else
+  fail "local DSH runtime is missing; run $ROOT/scripts/bootstrap"
+fi
+
+DSH_HOME=${DSH_HOME:-"$HOME/.dsh"}
+PROFILE_SRC="$ROOT/profiles/engineering"
+PROFILE_DST="$DSH_HOME/profiles/engineering"
+
+for name in package.json cordis.patch.yml pnpm-workspace.yaml; do
+  if [ ! -f "$PROFILE_DST/$name" ]; then
+    fail "runtime profile file missing: $PROFILE_DST/$name"
+  elif cmp -s "$PROFILE_SRC/$name" "$PROFILE_DST/$name"; then
+    pass "runtime profile $name matches repository canonical state"
+  else
+    fail "runtime profile $name has drifted from repository canonical state"
+  fi
+done
+
+if [ -x "$DSH_BIN" ] && [ -f "$PROFILE_DST/package.json" ]; then
+  DUMP_FILE=$(mktemp)
+  DUMP_ERR=$(mktemp)
+  trap 'rm -f "$DUMP_FILE" "$DUMP_ERR"' EXIT HUP INT TERM
+  if DSH_HOME="$DSH_HOME" "$DSH_BIN" --profile engineering --dump-config >"$DUMP_FILE" 2>"$DUMP_ERR"; then
+    pass 'engineering profile composes successfully'
+    if grep -Fq 'web-startup' "$DUMP_FILE" || grep -Fq '@deepseek-ai/dsh-web-app' "$DUMP_FILE"; then
+      pass 'official DSH Web UI surface is present in the composed profile'
+    else
+      fail 'composed engineering profile does not expose the expected Web UI surface'
+    fi
+  else
+    fail "engineering profile does not compose: $(tr '\n' ' ' < "$DUMP_ERR")"
+  fi
+fi
+
+BIN_DIR=${DSH_ENGINEERING_BIN_DIR:-"$HOME/.local/bin"}
+LAUNCHER="$BIN_DIR/dsh-engineering"
+CANONICAL_LAUNCHER="$ROOT/bin/dsh-engineering"
+if [ -L "$LAUNCHER" ]; then
+  installed=$(readlink -f "$LAUNCHER" 2>/dev/null || true)
+  canonical=$(readlink -f "$CANONICAL_LAUNCHER" 2>/dev/null || true)
+  if [ -n "$installed" ] && [ "$installed" = "$canonical" ]; then
+    pass 'dsh-engineering launcher points to this repository'
+  else
+    fail 'dsh-engineering launcher points somewhere else'
+  fi
+elif [ -e "$LAUNCHER" ]; then
+  fail "$LAUNCHER exists but is not the managed symlink"
+else
+  fail "$LAUNCHER is not installed"
+fi
+
+if check_command git; then
+  pass "git is available ($(git --version))"
+else
+  fail 'git is required for the engineering stack'
+fi
+
+for optional_cli in gh supabase vercel; do
+  if check_command "$optional_cli"; then
+    pass "$optional_cli CLI is available"
+  else
+    warn "$optional_cli CLI is not installed yet"
+  fi
+done
+
+printf '\nSummary: %d failure(s), %d warning(s).\n' "$failures" "$warnings"
+if [ "$failures" -ne 0 ]; then
+  exit 1
+fi
+
+exit 0
