@@ -1,3 +1,23 @@
 # Canonical user patch layer for the engineering profile.
-# Capabilities are added here only after their contracts and fail-first tests exist.
-[]
+# Model-facing tools belong to the canonical agent preset. Shared process
+# registries/backends belong to the host plane here.
+
+# Use the repository-owned preset for new engineering sessions. DSH still adds
+# its shipped preset root at launch, while includeUserRoot keeps the canonical
+# preset materialized under $DSH_HOME/.agent-presets discoverable.
+- id: agent-presets
+  config:
+    default: matspectrum-engineering
+    includeUserRoot: true
+
+# Persistent terminal is opt-in upstream. The owner-scoped terminal registry
+# and local Bash PTY backend are process services; the six model-facing tools
+# are exposed only by agent-presets/matspectrum-engineering.
+- insert:
+    - id: terminal-registry
+      name: '@deepseek-ai/dsh-terminal'
+
+    - id: terminal-bash-backend
+      name: '@deepseek-ai/dsh-terminal-bash'
+      config:
+        backendType: shell
