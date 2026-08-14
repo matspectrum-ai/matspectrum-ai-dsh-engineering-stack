@@ -32,15 +32,33 @@ require_executable() {
   fi
 }
 
+require_text() {
+  path="$1"
+  text="$2"
+  description="$3"
+  if [ -f "$path" ] && grep -Fq -- "$text" "$path"; then
+    pass "$description"
+  else
+    fail "$description (expected text in $path: $text)"
+  fi
+}
+
 printf '%s\n' 'DSH Engineering Stack - foundation acceptance contract'
 
 require_file 'specs/stack.spec.yaml' 'stack specification exists'
 require_file 'contracts/runtime.contract.yaml' 'runtime contract exists'
 require_file 'manifests/versions.yaml' 'pinned version manifest exists'
+require_file 'package.json' 'root package manifest exists'
+require_text 'package.json' '"@deepseek-ai/dsh": "0.1.0-rc.5"' 'DSH runtime is exactly pinned'
+require_text 'package.json' '"packageManager": "pnpm@11.7.0"' 'package manager is exactly pinned'
 require_file 'profiles/engineering/package.json' 'engineering profile manifest exists'
+require_text 'profiles/engineering/package.json' '"@deepseek-ai/dsh-base"' 'engineering profile includes DSH base bundle'
+require_text 'profiles/engineering/package.json' '"@deepseek-ai/dsh-web-app"' 'engineering profile includes official Web UI bundle'
 require_file 'profiles/engineering/cordis.patch.yml' 'engineering profile patch exists'
+require_file 'profiles/engineering/pnpm-workspace.yaml' 'engineering profile pnpm settings exist'
 require_executable 'scripts/bootstrap' 'bootstrap entrypoint exists and is executable'
 require_executable 'scripts/doctor' 'doctor entrypoint exists and is executable'
+require_executable 'bin/dsh-engineering' 'canonical DSH engineering launcher exists and is executable'
 require_file 'AGENTS.md' 'repository engineering governance exists'
 
 if [ "$failures" -ne 0 ]; then
