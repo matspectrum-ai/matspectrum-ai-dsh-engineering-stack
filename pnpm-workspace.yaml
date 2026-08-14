@@ -1,0 +1,16 @@
+# Root package is always included even when no workspace package globs are declared.
+# pnpm 11 fails closed on unreviewed dependency lifecycle scripts.
+strictDepBuilds: true
+
+# Reviewed against the DeepSeek Harness upstream build policy and the actual
+# @deepseek-ai/dsh@0.1.0-rc.6 install graph observed in CI.
+allowBuilds:
+  # Required native/runtime builds.
+  node-pty: true
+  koffi: true
+  '@deepseek-ai/dsh-subprocess-local@0.1.0-rc.6': true
+
+  # Upstream explicitly treats these lifecycle scripts as unnecessary.
+  '@google/genai': false
+  protobufjs: false
+  node-addon-require-builtin: false

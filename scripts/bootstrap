@@ -1,0 +1,151 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_PATH=$0
+if command -v readlink >/dev/null 2>&1; then
+  resolved=$(readlink -f "$SCRIPT_PATH" 2>/dev/null || true)
+  if [ -n "$resolved" ]; then
+    SCRIPT_PATH=$resolved
+  fi
+fi
+SCRIPT_DIR=$(CDPATH= cd "$(dirname "$SCRIPT_PATH")" && pwd)
+ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
+
+fail() {
+  printf 'ERROR: %s\n' "$1" >&2
+  exit 1
+}
+
+info() {
+  printf '==> %s\n' "$1"
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || fail "required command not found: $1"
+}
+
+require_command node
+require_command npm
+require_command cp
+require_command cmp
+require_command mkdir
+require_command ln
+
+if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit((major === 22 && minor >= 19) || major >= 24 ? 0 : 1)'; then
+  fail "unsupported Node.js $(node --version); expected ^22.19.0 or >=24.0.0"
+fi
+
+EXPECTED_PNPM=$(node -p "require('$ROOT/package.json').packageManager.split('@').pop()")
+EXPECTED_DSH=$(node -p "require('$ROOT/package.json').dependencies['@deepseek-ai/dsh']")
+
+if command -v pnpm >/dev/null 2>&1 && [ "$(pnpm --version)" = "$EXPECTED_PNPM" ]; then
+  info "pnpm $EXPECTED_PNPM already active"
+else
+  info "activating pnpm $EXPECTED_PNPM"
+  if command -v corepack >/dev/null 2>&1; then
+    corepack prepare "pnpm@$EXPECTED_PNPM" --activate
+  else
+    npm install --global "pnpm@$EXPECTED_PNPM"
+  fi
+fi
+
+[ "$(pnpm --version)" = "$EXPECTED_PNPM" ] || fail "pnpm version mismatch after activation"
+
+info "verifying pinned DSH $EXPECTED_DSH exists in the npm registry"
+if ! REGISTRY_DSH=$(pnpm view "@deepseek-ai/dsh@$EXPECTED_DSH" version 2>/dev/null); then
+  fail "pinned @deepseek-ai/dsh@$EXPECTED_DSH is not available from the configured npm registry"
+fi
+[ "$REGISTRY_DSH" = "$EXPECTED_DSH" ] || fail "registry resolved unexpected DSH version: expected $EXPECTED_DSH, got $REGISTRY_DSH"
+
+info "installing repository dependencies"
+cd "$ROOT"
+LOCKFILE_TRACKED=false
+if command -v git >/dev/null 2>&1 && git -C "$ROOT" ls-files --error-unmatch pnpm-lock.yaml >/dev/null 2>&1; then
+  LOCKFILE_TRACKED=true
+fi
+
+if [ "$LOCKFILE_TRACKED" = true ]; then
+  [ -f pnpm-lock.yaml ] || fail "pnpm-lock.yaml is tracked by Git but missing from the working tree"
+  pnpm install --frozen-lockfile
+else
+  if [ -f pnpm-lock.yaml ]; then
+    printf 'WARN: local untracked pnpm-lock.yaml is not canonical yet; refreshing it from exact direct pins.\n' >&2
+  else
+    printf 'WARN: pnpm-lock.yaml is not committed yet; installing from exact direct pins for this foundation cycle.\n' >&2
+  fi
+  pnpm install --no-frozen-lockfile
+fi
+
+DSH_BIN="$ROOT/node_modules/.bin/dsh"
+[ -x "$DSH_BIN" ] || fail "local dsh executable was not installed"
+ACTUAL_DSH=$($DSH_BIN --version 2>&1)
+case "$ACTUAL_DSH" in
+  *"$EXPECTED_DSH"*) ;;
+  *) fail "dsh version mismatch: expected $EXPECTED_DSH, got $ACTUAL_DSH" ;;
+esac
+
+DSH_HOME=${DSH_HOME:-"$HOME/.dsh"}
+PROFILE_SRC="$ROOT/profiles/engineering"
+PROFILE_DST="$DSH_HOME/profiles/engineering"
+mkdir -p "$PROFILE_DST"
+
+STAMP=$(date +%Y%m%d-%H%M%S)
+BACKUP_DIR=""
+
+sync_profile_file() {
+  name=$1
+  src="$PROFILE_SRC/$name"
+  dst="$PROFILE_DST/$name"
+
+  [ -f "$src" ] || fail "canonical profile file missing: $src"
+
+  if [ -f "$dst" ] && ! cmp -s "$src" "$dst"; then
+    if [ -z "$BACKUP_DIR" ]; then
+      BACKUP_DIR="$DSH_HOME/backups/engineering-$STAMP"
+      mkdir -p "$BACKUP_DIR"
+    fi
+    cp -p "$dst" "$BACKUP_DIR/$name"
+    info "backed up divergent profile file: $dst"
+  fi
+
+  cp "$src" "$dst"
+}
+
+info "materializing canonical engineering profile into $PROFILE_DST"
+sync_profile_file package.json
+sync_profile_file cordis.patch.yml
+sync_profile_file pnpm-workspace.yaml
+
+info "validating composed engineering profile"
+DSH_HOME="$DSH_HOME" "$DSH_BIN" --profile engineering --dump-config >/dev/null
+
+BIN_DIR=${DSH_ENGINEERING_BIN_DIR:-"$HOME/.local/bin"}
+LAUNCHER="$BIN_DIR/dsh-engineering"
+CANONICAL_LAUNCHER="$ROOT/bin/dsh-engineering"
+mkdir -p "$BIN_DIR"
+
+if [ -e "$LAUNCHER" ] || [ -L "$LAUNCHER" ]; then
+  existing=$(readlink -f "$LAUNCHER" 2>/dev/null || true)
+  canonical=$(readlink -f "$CANONICAL_LAUNCHER" 2>/dev/null || true)
+  if [ -z "$existing" ] || [ "$existing" != "$canonical" ]; then
+    fail "$LAUNCHER already exists and is not managed by this repository"
+  fi
+else
+  ln -s "$CANONICAL_LAUNCHER" "$LAUNCHER"
+  info "installed launcher: $LAUNCHER"
+fi
+
+if command -v dsh >/dev/null 2>&1; then
+  GLOBAL_DSH=$(command -v dsh)
+  printf 'INFO: another dsh is visible at %s; dsh-engineering always uses the repository-pinned runtime.\n' "$GLOBAL_DSH"
+fi
+
+info "running doctor"
+DSH_HOME="$DSH_HOME" DSH_ENGINEERING_BIN_DIR="$BIN_DIR" sh "$ROOT/scripts/doctor"
+
+case ":$PATH:" in
+  *":$BIN_DIR:"*) ;;
+  *) printf 'WARN: %s is not in PATH; add it before invoking dsh-engineering by name.\n' "$BIN_DIR" >&2 ;;
+esac
+
+printf '\nBootstrap complete. Use: dsh-engineering\n'

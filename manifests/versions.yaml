@@ -1,0 +1,26 @@
+schema_version: 1
+
+stack:
+  version: "0.1.0"
+
+runtime:
+  package: "@deepseek-ai/dsh"
+  version: "0.1.0-rc.6"
+  upstream_repository: "deepseek-ai/deepseek-harness"
+  release_provenance: "npm-registry"
+  upstream_release_commit: null
+  source_version_observed_on_default_branch: "0.1.0-rc.5"
+  provenance_note: "The npm registry publishes rc.6 while the upstream default branch package manifest still reports rc.5; do not invent a source commit for rc.6."
+
+node:
+  supported: "^22.19.0 || >=24.0.0"
+
+package_manager:
+  name: "pnpm"
+  version: "11.7.0"
+
+policy:
+  direct_runtime_dependency_must_be_exact: true
+  package_manager_must_be_exact: true
+  registry_availability_must_be_verified_before_install: true
+  upstream_update_requires_acceptance_tests: true

@@ -1,0 +1,3 @@
+# Canonical user patch layer for the engineering profile.
+# Capabilities are added here only after their contracts and fail-first tests exist.
+[]

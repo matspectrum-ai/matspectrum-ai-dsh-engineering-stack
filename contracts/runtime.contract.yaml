@@ -1,0 +1,110 @@
+contract: dsh-engineering-runtime
+version: 1
+status: draft
+
+runtime:
+  executable: dsh
+  upstream_repository: deepseek-ai/deepseek-harness
+  installation:
+    version_source: manifests/versions.yaml
+    version_must_be_pinned: true
+    package_manager_must_be_detected_before_removal: true
+  profiles:
+    canonical_profile: engineering
+    profile_path: "$DSH_HOME/profiles/engineering"
+    composed_config_must_be_inspectable: true
+
+filesystem:
+  repository_is_canonical: true
+  generated_runtime_state_is_canonical: false
+  secrets_are_versioned: false
+  sessions_are_versioned: false
+
+skills:
+  portable_project_root: .agents/skills
+  dsh_project_root: .dsh/skills
+  global_portable_root: ~/.agents/skills
+  global_dsh_root: ~/.dsh/skills
+  rule: reusable_methodology_prefers_portable_roots
+
+shell:
+  one_shot:
+    required: true
+    purpose: deterministic non-interactive commands
+  persistent_pty:
+    required: true
+    purpose: interactive or stateful terminal workflows
+  external_cli_contract:
+    executable_must_exist: true
+    authentication_must_be_verified: true
+    permissions_must_be_explicit: true
+    network_access_must_not_be_assumed: true
+
+mcp:
+  required: true
+  supported_transport_contract:
+    - stdio
+    - streamable-http
+  naming_contract: "mcp__<serverName>__<toolName>"
+  secrets:
+    may_be_referenced_from_environment: true
+    may_be_committed_to_repository: false
+  startup_failure:
+    must_be_observable: true
+    must_not_silently_remove_required_tools: true
+
+lsp:
+  required: true
+  executable_presence_must_be_checked: true
+  language_mapping_must_be_versioned: true
+  unsupported_language_behavior: explicit_failure
+
+engineering_pipeline:
+  ordered_stages:
+    - problem_analysis
+    - specification
+    - contracts
+    - tests_red
+    - implementation_green
+    - refactor
+    - verification
+    - technical_explanation
+  implementation_gate:
+    specification_required: true
+    contracts_required: true
+    failing_test_evidence_required: true
+  completion_gate:
+    required_checks_must_pass: true
+    unresolved_critical_review_findings_allowed: false
+
+orchestration:
+  graph_nodes_are_explicit: true
+  graph_transitions_are_explicit: true
+  node_inputs_and_outputs_are_contract_defined: true
+  retries_are_bounded: true
+  failure_states_are_terminal_or_routed_explicitly: true
+  hidden_side_effects_allowed: false
+
+security:
+  default_principle: least_privilege
+  unrestricted_host_access_default: false
+  secret_logging_allowed: false
+  public_unauthenticated_web_binding_allowed: false
+  elevated_operation_requires_explicit_policy: true
+
+mobile:
+  agent_control_plane_default_bind: loopback
+  private_authenticated_transport_required: true
+  public_funnel_default: false
+
+observability:
+  bootstrap_exit_codes_are_meaningful: true
+  doctor_exit_codes_are_meaningful: true
+  failures_identify_capability: true
+  destructive_operations_are_logged: true
+
+compatibility:
+  upstream_breaking_change_requires:
+    - contract_review
+    - acceptance_test_run
+    - explicit_version_update
