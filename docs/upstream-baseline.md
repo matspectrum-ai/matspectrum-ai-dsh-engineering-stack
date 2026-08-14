@@ -6,19 +6,25 @@ Baseline date: 2026-08-14
 
 Repository: `deepseek-ai/deepseek-harness`
 
-Observed upstream commit:
+Observed upstream commit used for the initial architecture review:
 
 `47f943859bef60e4160492346772ded9b24f765a`
 
-Observed root package version at the inspected baseline:
+Observed source package version on the upstream default branch at the current check:
 
 `0.1.0-rc.5`
+
+Published runtime selected by this stack after registry validation:
+
+`0.1.0-rc.6`
+
+Important provenance note: the npm registry currently exposes `@deepseek-ai/dsh@0.1.0-rc.6`, while the upstream default-branch `apps/cli/package.json` still reports `0.1.0-rc.5`. No Git tag or source commit mapping for rc.6 was available through the inspected upstream repository metadata, so this stack does not invent one. `manifests/versions.yaml` records the runtime release provenance as the npm registry and leaves `upstream_release_commit` null until a verifiable source mapping exists.
 
 Observed Node.js engine contract:
 
 `^22.19.0 || >=24.0.0`
 
-This document records the upstream state used to design the initial stack contracts. It is not itself the installation manifest. Runtime installation versions must be pinned separately in `manifests/versions.yaml` and changed only through an explicit compatibility update.
+This document records the upstream state used to design the stack contracts. It is not itself the installation manifest. Runtime installation versions are pinned separately in `manifests/versions.yaml` and changed only through an explicit compatibility update.
 
 ## Verified capability seams
 
@@ -65,9 +71,11 @@ The engineering profile therefore treats one-shot shell and persistent interacti
 
 Before changing the pinned DSH version:
 
-1. inspect upstream release and configuration changes;
-2. update this baseline when capability contracts changed;
-3. run the repository acceptance suite;
-4. run integration tests against the candidate runtime;
-5. document any contract migration;
-6. update the pinned manifest only after verification passes.
+1. verify the candidate package exists in the configured npm registry;
+2. inspect upstream release and configuration changes when source provenance is available;
+3. update this baseline when capability contracts changed;
+4. run the repository acceptance suite;
+5. install the candidate runtime in CI;
+6. run integration tests against the candidate runtime;
+7. document any contract migration;
+8. update the pinned manifest only after verification passes.
