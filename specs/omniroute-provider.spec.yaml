@@ -1,0 +1,48 @@
+feature: omniroute-provider
+status: specified
+
+objective:
+  - use the local OmniRoute OpenAI-compatible server as the primary DSH model provider
+  - keep provider routing decisions inside OmniRoute rather than hard-coding a single upstream vendor
+  - keep credentials outside Git
+  - fail visibly when the local provider is unavailable or the default route disappears
+
+provider:
+  id: omniroute
+  display_name: OmniRoute
+  protocol: openai-completions
+  base_url: http://127.0.0.1:20128/v1
+  credential_ref: OMNIROUTE_API_KEY
+
+models:
+  default:
+    id: auto/best-coding
+    rationale: primary OmniRoute coding combo
+  fallbacks:
+    - id: auto/coding:reliable
+      rationale: reliability-oriented coding combo
+
+security:
+  secret_in_repository: false
+  loopback_only_client_endpoint: true
+  credential_storage: environment
+
+runtime_checks:
+  - OMNIROUTE_API_KEY is present
+  - http://127.0.0.1:20128/v1/models returns a successful response
+  - response is valid JSON
+  - model catalog contains auto/best-coding
+  - model catalog contains auto/coding:reliable
+
+acceptance_criteria:
+  - DSH composed profile exposes provider route omniroute
+  - new engineering sessions default to omniroute/auto/best-coding
+  - provider configuration contains no literal API key
+  - doctor distinguishes missing credential, unreachable server, invalid catalog, and missing default model
+  - provider unavailability does not silently fall back to an unrelated credential or endpoint
+
+non_goals:
+  - manage OmniRoute provider credentials
+  - commit OmniRoute API keys
+  - expose OmniRoute publicly
+  - guarantee which upstream model an OmniRoute combo selects
