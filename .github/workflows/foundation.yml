@@ -29,3 +29,29 @@ jobs:
 
       - name: Run foundation acceptance contract
         run: sh tests/acceptance/stack_contract.sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Activate pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+          test "$(pnpm --version)" = "11.7.0"
+
+      - name: Verify pinned DSH is published
+        run: |
+          expected=$(node -p "require('./package.json').dependencies['@deepseek-ai/dsh']")
+          actual=$(pnpm view "@deepseek-ai/dsh@$expected" version)
+          test "$actual" = "$expected"
+
+      - name: Install pinned runtime
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Verify installed DSH version
+        run: |
+          expected=$(node -p "require('./package.json').dependencies['@deepseek-ai/dsh']")
+          ./node_modules/.bin/dsh --version | grep -F "$expected"
