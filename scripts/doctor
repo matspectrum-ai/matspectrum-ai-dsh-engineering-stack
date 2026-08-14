@@ -138,6 +138,7 @@ PROFILE_SRC="$ROOT/profiles/engineering"
 PROFILE_DST="$DSH_HOME/profiles/engineering"
 PRESET_SRC="$ROOT/agent-presets/matspectrum-engineering"
 PRESET_DST="$DSH_HOME/.agent-presets/matspectrum-engineering"
+PROFILE_RUNTIME_PACKAGES='@deepseek-ai/dsh-terminal @deepseek-ai/dsh-terminal-bash @deepseek-ai/dsh-tool-terminal'
 
 for name in package.json cordis.patch.yml pnpm-workspace.yaml; do
   if [ ! -f "$PROFILE_DST/$name" ]; then
@@ -146,6 +147,30 @@ for name in package.json cordis.patch.yml pnpm-workspace.yaml; do
     pass "runtime profile $name matches repository canonical state"
   else
     fail "runtime profile $name has drifted from repository canonical state"
+  fi
+done
+
+PROFILE_NODE_MODULES_SRC="$PROFILE_SRC/node_modules"
+PROFILE_NODE_MODULES_DST="$PROFILE_DST/node_modules"
+if [ -L "$PROFILE_NODE_MODULES_DST" ]; then
+  installed_modules=$(readlink -f "$PROFILE_NODE_MODULES_DST" 2>/dev/null || true)
+  canonical_modules=$(readlink -f "$PROFILE_NODE_MODULES_SRC" 2>/dev/null || true)
+  if [ -n "$installed_modules" ] && [ "$installed_modules" = "$canonical_modules" ]; then
+    pass 'engineering profile node_modules points to the canonical locked workspace graph'
+  else
+    fail 'engineering profile node_modules link points somewhere else'
+  fi
+else
+  fail 'engineering profile node_modules is not the managed runtime link'
+fi
+
+# Unlike --dump-config, these probes actually exercise Node package resolution
+# from the same profile directory used when DSH mounts a user-owned agent preset.
+for pkg in $PROFILE_RUNTIME_PACKAGES; do
+  if (cd "$PROFILE_DST" && node --input-type=module -e 'await import(process.argv[1])' "$pkg") >/dev/null 2>&1; then
+    pass "profile runtime dependency imports successfully: $pkg"
+  else
+    fail "profile runtime dependency cannot be imported from engineering profile: $pkg"
   fi
 done
 
