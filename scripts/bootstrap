@@ -51,6 +51,12 @@ fi
 
 [ "$(pnpm --version)" = "$EXPECTED_PNPM" ] || fail "pnpm version mismatch after activation"
 
+info "verifying pinned DSH $EXPECTED_DSH exists in the npm registry"
+if ! REGISTRY_DSH=$(pnpm view "@deepseek-ai/dsh@$EXPECTED_DSH" version 2>/dev/null); then
+  fail "pinned @deepseek-ai/dsh@$EXPECTED_DSH is not available from the configured npm registry"
+fi
+[ "$REGISTRY_DSH" = "$EXPECTED_DSH" ] || fail "registry resolved unexpected DSH version: expected $EXPECTED_DSH, got $REGISTRY_DSH"
+
 info "installing repository dependencies"
 cd "$ROOT"
 if [ -f pnpm-lock.yaml ]; then
