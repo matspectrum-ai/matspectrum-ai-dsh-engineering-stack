@@ -8,7 +8,7 @@ This repository is the canonical source of truth for the engineering environment
 
 DeepSeek Harness is a pinned dependency, not vendored source and not a fork. The repository currently pins:
 
-- `@deepseek-ai/dsh` `0.1.0-rc.5`
+- `@deepseek-ai/dsh` `0.1.0-rc.6`
 - `pnpm` `11.7.0`
 - Node.js `^22.19.0 || >=24.0.0`
 
@@ -22,7 +22,7 @@ From a clone of this repository:
 ./scripts/bootstrap
 ```
 
-Bootstrap validates Node.js, activates the pinned pnpm version, installs the repository-local DSH runtime, materializes the canonical `engineering` profile under `$DSH_HOME` (default `~/.dsh`), installs `~/.local/bin/dsh-engineering`, validates profile composition, and runs the doctor.
+Bootstrap validates Node.js, activates the pinned pnpm version, verifies the pinned DSH release exists, installs the repository-local DSH runtime from the canonical lockfile, materializes the canonical `engineering` profile under `$DSH_HOME` (default `~/.dsh`), installs `~/.local/bin/dsh-engineering`, validates profile composition, and runs the doctor.
 
 It does not silently remove another existing global `dsh`. The managed launcher always executes the runtime pinned by this repository.
 
@@ -42,13 +42,15 @@ pnpm acceptance
 pnpm doctor
 ```
 
-`doctor` distinguishes mandatory runtime failures from optional CLI warnings. Git is mandatory at this stage; GitHub, Supabase, and Vercel CLIs are detected but remain optional until their integration phases are specified and tested.
+`doctor` distinguishes mandatory runtime failures from optional CLI warnings. Git is mandatory at this stage; GitHub, Supabase, and Vercel CLIs are detected and were present on the first validated antiX target machine.
 
 ## Status
 
-Foundation runtime is implemented behind a draft PR. Static acceptance and CI are defined. Real-machine bootstrap validation and the first committed `pnpm-lock.yaml` are still required before this foundation is considered stable.
+Phase 1 — Runtime Foundation is validated.
 
-Subsequent phases add, in test-first order: persistent PTY, portable Skills, LSP, MCP, SDD/TDD governance, graph orchestration, secure mobile access, and hardening.
+The canonical bootstrap has been proven on the target antiX machine with Node.js `v24.18.1`, pnpm `11.7.0`, DSH `0.1.0-rc.6`, profile composition, launcher installation, and doctor result `0 failures / 0 warnings`. The official Web UI was then booted successfully through `dsh-engineering` at `http://127.0.0.1:3080`. The dependency graph is committed in `pnpm-lock.yaml`, and CI reproduces it with `pnpm install --frozen-lockfile`.
+
+Subsequent phases add, in test-first order: shell/PTY capability verification, portable Skills, LSP, MCP, SDD/TDD governance, graph orchestration, secure mobile access, and hardening.
 
 ## Engineering rule
 
