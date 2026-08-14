@@ -42,6 +42,53 @@ check_optional_cli_auth() {
   fi
 }
 
+check_omniroute() {
+  endpoint='http://127.0.0.1:20128/v1/models'
+
+  if [ -z "${OMNIROUTE_API_KEY:-}" ]; then
+    warn 'OMNIROUTE_API_KEY is not defined; OmniRoute end-to-end validation is unavailable'
+    return
+  fi
+
+  if ! check_command curl; then
+    warn 'curl is not installed; OmniRoute endpoint cannot be validated'
+    return
+  fi
+
+  tmp=$(mktemp)
+  if ! curl -fsS --connect-timeout 2 --max-time 10 \
+    -H "Authorization: Bearer $OMNIROUTE_API_KEY" \
+    "$endpoint" >"$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    warn 'OmniRoute is configured but http://127.0.0.1:20128/v1/models is unreachable or rejected the credential'
+    return
+  fi
+
+  pass 'OmniRoute local /v1/models endpoint is reachable with the configured credential'
+
+  if ! node -e 'const fs=require("fs"); try { const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.exit(Array.isArray(v.data)?0:1) } catch { process.exit(1) }' "$tmp"; then
+    rm -f "$tmp"
+    warn 'OmniRoute /v1/models did not return the expected OpenAI-compatible JSON catalog'
+    return
+  fi
+
+  pass 'OmniRoute model catalog is valid OpenAI-compatible JSON'
+
+  if node -e 'const fs=require("fs"); const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const ids=new Set(v.data.map(x=>x&&x.id)); process.exit(ids.has("auto/best-coding")?0:1)' "$tmp"; then
+    pass 'OmniRoute advertises the default auto/best-coding route'
+  else
+    fail 'OmniRoute is reachable but the required default auto/best-coding route is missing'
+  fi
+
+  if node -e 'const fs=require("fs"); const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const ids=new Set(v.data.map(x=>x&&x.id)); process.exit(ids.has("auto/coding:reliable")?0:1)' "$tmp"; then
+    pass 'OmniRoute advertises the auto/coding:reliable fallback route'
+  else
+    warn 'OmniRoute does not currently advertise the auto/coding:reliable fallback route'
+  fi
+
+  rm -f "$tmp"
+}
+
 printf '%s\n' 'DSH Engineering Stack Doctor'
 printf '%s\n' '----------------------------'
 
@@ -142,6 +189,12 @@ if [ -x "$DSH_BIN" ] && [ -f "$PROFILE_DST/package.json" ]; then
     else
       fail 'matspectrum-engineering default preset is missing from the composed profile'
     fi
+
+    if grep -Fq 'provider: omniroute' "$DUMP_FILE" && grep -Fq 'model: auto/best-coding' "$DUMP_FILE"; then
+      pass 'OmniRoute auto/best-coding is the composed default model route'
+    else
+      fail 'composed engineering profile does not select OmniRoute auto/best-coding by default'
+    fi
   else
     fail "engineering profile does not compose: $(tr '\n' ' ' < "$DUMP_ERR")"
   fi
@@ -175,6 +228,8 @@ fi
 check_optional_cli_auth gh 'GitHub' gh auth status
 check_optional_cli_auth supabase 'Supabase' supabase projects list
 check_optional_cli_auth vercel 'Vercel' vercel whoami
+
+check_omniroute
 
 printf '\nSummary: %d failure(s), %d warning(s).\n' "$failures" "$warnings"
 if [ "$failures" -ne 0 ]; then exit 1; fi
