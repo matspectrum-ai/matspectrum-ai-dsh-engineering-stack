@@ -1,6 +1,6 @@
 # Canonical user patch layer for the engineering profile.
 # Model-facing tools belong to the canonical agent preset. Shared process
-# registries/backends belong to the host plane here.
+# registries/backends and deployment-level model routing belong to the host plane here.
 
 # Use the repository-owned preset for new engineering sessions. DSH still adds
 # its shipped preset root at launch, while includeUserRoot keeps the canonical
@@ -9,6 +9,28 @@
   config:
     default: matspectrum-engineering
     includeUserRoot: true
+
+# OmniRoute is the canonical provider boundary. The API key is referenced by
+# environment variable name only; no credential value belongs in this repository.
+# The default route delegates upstream-model selection to OmniRoute.
+- id: llm-pi-ai
+  config:
+    providers:
+      omniroute:
+        displayName: OmniRoute
+        apiKeyEnv: OMNIROUTE_API_KEY
+        api: openai-completions
+        baseURL: http://127.0.0.1:20128/v1
+        models:
+          - id: auto/best-coding
+            name: OmniRoute Best Coding
+          - id: auto/coding:reliable
+            name: OmniRoute Coding Reliable
+
+- id: agent-default-model
+  config:
+    provider: omniroute
+    model: auto/best-coding
 
 # Persistent terminal is opt-in upstream. The owner-scoped terminal registry
 # and local Bash PTY backend are process services; the six model-facing tools
