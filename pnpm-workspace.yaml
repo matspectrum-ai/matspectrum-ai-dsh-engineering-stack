@@ -1,4 +1,6 @@
-# Root package is always included even when no workspace package globs are declared.
+packages:
+  - profiles/engineering
+
 # pnpm 11 fails closed on unreviewed dependency lifecycle scripts.
 strictDepBuilds: true
 
