@@ -89,6 +89,96 @@ check_omniroute() {
   rm -f "$tmp"
 }
 
+validate_canonical_skill() {
+  skill=$1
+  path=$2
+
+  if [ ! -f "$path" ]; then
+    fail "canonical managed skill is missing: $path"
+    return
+  fi
+
+  case "$skill" in
+    *[!a-z0-9-]*|'')
+      fail "managed skill name is not kebab-case: $skill"
+      return
+      ;;
+  esac
+
+  frontmatter_name=$(awk '
+    NR == 1 && $0 == "---" { in_frontmatter = 1; next }
+    in_frontmatter && $0 == "---" { exit }
+    in_frontmatter && /^name:[[:space:]]*/ {
+      sub(/^name:[[:space:]]*/, "")
+      print
+      exit
+    }
+  ' "$path")
+
+  frontmatter_description=$(awk '
+    NR == 1 && $0 == "---" { in_frontmatter = 1; next }
+    in_frontmatter && $0 == "---" { exit }
+    in_frontmatter && /^description:[[:space:]]*/ {
+      sub(/^description:[[:space:]]*/, "")
+      print
+      exit
+    }
+  ' "$path")
+
+  if [ "$frontmatter_name" = "$skill" ]; then
+    pass "canonical skill frontmatter name matches bundle directory: $skill"
+  else
+    fail "canonical skill frontmatter name mismatch for $skill: ${frontmatter_name:-missing}"
+  fi
+
+  if [ -n "$frontmatter_description" ]; then
+    pass "canonical skill has required description: $skill"
+  else
+    fail "canonical skill description is missing or empty: $skill"
+  fi
+}
+
+check_managed_skills() {
+  manifest="$ROOT/manifests/managed-skills.txt"
+  canonical_root="$ROOT/.agents/skills"
+  runtime_root="$DSH_AGENTS_HOME/skills"
+
+  if [ ! -f "$manifest" ]; then
+    fail "managed skills manifest is missing: $manifest"
+    return
+  fi
+
+  if ! check_command diff; then
+    fail 'diff is required to validate managed skill bundle drift'
+    return
+  fi
+
+  count=0
+  while IFS= read -r skill || [ -n "$skill" ]; do
+    [ -n "$skill" ] || continue
+    count=$((count + 1))
+    canonical_bundle="$canonical_root/$skill"
+    canonical_file="$canonical_bundle/SKILL.md"
+    runtime_bundle="$runtime_root/$skill"
+
+    validate_canonical_skill "$skill" "$canonical_file"
+
+    if [ ! -d "$runtime_bundle" ]; then
+      fail "runtime managed skill bundle is missing: $runtime_bundle"
+    elif diff -qr "$canonical_bundle" "$runtime_bundle" >/dev/null 2>&1; then
+      pass "runtime managed skill matches repository canonical state: $skill"
+    else
+      fail "runtime managed skill has drifted from repository canonical state: $skill"
+    fi
+  done < "$manifest"
+
+  if [ "$count" -gt 0 ]; then
+    pass "managed skills manifest contains $count skill(s)"
+  else
+    fail 'managed skills manifest is empty'
+  fi
+}
+
 printf '%s\n' 'DSH Engineering Stack Doctor'
 printf '%s\n' '----------------------------'
 
@@ -134,6 +224,7 @@ else
 fi
 
 DSH_HOME=${DSH_HOME:-"$HOME/.dsh"}
+DSH_AGENTS_HOME=${DSH_AGENTS_HOME:-"$HOME/.agents"}
 PROFILE_SRC="$ROOT/profiles/engineering"
 PROFILE_DST="$DSH_HOME/profiles/engineering"
 PRESET_SRC="$ROOT/agent-presets/matspectrum-engineering"
@@ -184,11 +275,13 @@ for name in agent.cordis.yml preset.yml; do
   fi
 done
 
+check_managed_skills
+
 if [ -x "$DSH_BIN" ] && [ -f "$PROFILE_DST/package.json" ]; then
   DUMP_FILE=$(mktemp)
   DUMP_ERR=$(mktemp)
   trap 'rm -f "$DUMP_FILE" "$DUMP_ERR"' EXIT HUP INT TERM
-  if DSH_HOME="$DSH_HOME" "$DSH_BIN" --profile engineering --dump-config >"$DUMP_FILE" 2>"$DUMP_ERR"; then
+  if DSH_HOME="$DSH_HOME" DSH_AGENTS_HOME="$DSH_AGENTS_HOME" "$DSH_BIN" --profile engineering --dump-config >"$DUMP_FILE" 2>"$DUMP_ERR"; then
     pass 'engineering profile composes successfully'
 
     if grep -Fq 'web-startup' "$DUMP_FILE" || grep -Fq '@deepseek-ai/dsh-web-app' "$DUMP_FILE"; then
