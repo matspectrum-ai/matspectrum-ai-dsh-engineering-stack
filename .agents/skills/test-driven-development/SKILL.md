@@ -52,6 +52,22 @@ Examples:
 
 Never claim a concrete pre-implementation status code, exception, error body, timeout, or dependency failure unless repository/runtime evidence has established it.
 
+### Test-harness evidence rule
+
+A planned test describes behavior first. Concrete test implementation belongs to the repository's actual test stack.
+
+Do not invent a test language, framework, runner, helper, file name, package manager, or command when the project test stack is unknown.
+
+Describe planned tests behaviorally until repository evidence identifies the concrete test harness.
+
+For an evidence-starved hypothetical task, write statements such as:
+
+- "send the specified method/path through the repository's route-level test harness";
+- "assert the response contract once status/body requirements are resolved";
+- "run the repository's focused test command once discovered".
+
+Do not emit JavaScript/Python/Go test code, `describe` blocks, request helpers, test file paths, `npm test`, `pytest`, `go test`, or equivalent concrete tooling unless the repository or user established that tooling.
+
 ## GREEN
 
 1. Implement the minimum production change that satisfies the failing contract.
@@ -100,6 +116,8 @@ Consider only cases that are relevant to the specification and contracts, such a
 
 A checklist item is not automatically a requirement. Do not create tests for invented behavior solely because it is a common edge case.
 
+If an edge behavior is conditional on an unresolved design decision, keep the test branch unresolved. Do not populate it with conventional status codes, dependency states, or auth semantics merely as an example of what the project might do.
+
 ## Anti-patterns
 
 - mocking the behavior being tested instead of its dependencies;
@@ -109,16 +127,17 @@ A checklist item is not automatically a requirement. Do not create tests for inv
 - skipping the pre-implementation RED run;
 - accepting flaky retries as correctness;
 - claiming a precise RED result before observing it;
-- writing tests for speculative requirements.
+- writing tests for speculative requirements;
+- selecting a test framework or command without repository evidence.
 
 ## Completion evidence
 
 Report:
 
-- RED command and observed intended failure;
+- RED command and observed intended failure, once actually run;
 - implementation change;
 - GREEN command/result;
 - regression suite result;
 - remaining untested risk.
 
-If RED has not actually been run yet, label it as **planned RED**, not evidence.
+If RED has not actually been run yet, label it as **planned RED**, not evidence. If the command is not yet known, mark the concrete command **UNRESOLVED** rather than inventing one.
