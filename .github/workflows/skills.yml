@@ -17,11 +17,14 @@ jobs:
       - name: Validate shell syntax
         run: |
           sh -n tests/acceptance/skills_contract.sh
+          sh -n tests/acceptance/methodology_enforcement_contract.sh
           sh -n scripts/bootstrap
           sh -n scripts/doctor
 
-      - name: Run Phase 3 acceptance contract
-        run: sh tests/acceptance/skills_contract.sh
+      - name: Run Phase 3 acceptance contracts
+        run: |
+          sh tests/acceptance/skills_contract.sh
+          sh tests/acceptance/methodology_enforcement_contract.sh
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
