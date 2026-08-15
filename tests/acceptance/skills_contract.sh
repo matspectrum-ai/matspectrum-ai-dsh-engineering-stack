@@ -71,9 +71,7 @@ require_text 'scripts/doctor' '.agents/skills' 'doctor validates repository port
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Brazilian Portuguese' 'engineering persona defaults user responses to Brazilian Portuguese'
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'load the relevant engineering skills' 'engineering persona directs non-trivial work through relevant skills'
 
-# Anti-speculation gates added after real Phase 3 E2E exercises. The first
-# exercise exposed invented API behavior; the second exposed subtler scope and
-# toolchain inventions despite otherwise-correct unknown handling.
+# Anti-speculation gates added after real Phase 3 E2E exercises.
 require_text '.agents/skills/problem-analysis/SKILL.md' 'Do not invent requirements, defaults, status codes, response schemas, authentication policy, dependencies, observability signals, or failure behavior.' 'problem analysis explicitly forbids invented engineering facts'
 require_text '.agents/skills/specification-driven-development/SKILL.md' 'A specification must not turn an unresolved unknown into a requirement, acceptance criterion, edge case, failure mode, security rule, observability signal, or rollback behavior.' 'SDD forbids promoting unknowns into normative requirements'
 require_text '.agents/skills/specification-driven-development/SKILL.md' 'If evidence is insufficient, keep the field unresolved or omit it and record the decision as an unknown.' 'SDD defines safe behavior when evidence is insufficient'
@@ -88,6 +86,17 @@ require_text '.agents/skills/verification/SKILL.md' 'Do not invent verification 
 require_text '.agents/skills/verification/SKILL.md' 'Describe the evidence action abstractly and mark the concrete command UNRESOLVED until discovered.' 'verification keeps concrete commands evidence-backed'
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Never invent engineering requirements or present assumptions as facts.' 'persona enforces anti-speculation at the top level'
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Pending decisions remain unknowns, not requirements, non-goals, test harness choices, or verification commands.' 'persona prevents residual scope/toolchain speculation'
+
+# Explicit skill-preflight gates added after E2E #3. The user explicitly
+# requested four skills in order; the model loaded only two, started the task,
+# and then incorrectly claimed no requested skill was unavailable.
+require_text 'specs/skills-library.spec.yaml' 'every-requested-skill-has-successful-skill-tool-result' 'spec defines successful explicit skill preflight'
+require_text 'contracts/skills.contract.yaml' 'no requested skill may be silently skipped' 'contract forbids silently skipped explicitly requested skills'
+require_text 'contracts/skills.contract.yaml' 'no loaded claim without successful matching tool evidence' 'contract makes loaded-skill reporting evidence-backed'
+require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'When the user explicitly names Skills to load, treat that list as a hard preflight checklist.' 'persona defines explicit requested Skills as hard preflight'
+require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Do not begin substantive analysis, planning, coding, or explanation until every requested Skill has either loaded successfully or returned an explicit tool error.' 'persona blocks task work until requested Skill calls resolve'
+require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Never claim that a Skill was loaded, available, or unavailable unless the corresponding skill tool result directly proves that claim.' 'persona forbids unsupported Skill-load status claims'
+require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'If any requested Skill fails to load, stop before task execution and report the exact failed Skill and tool error.' 'persona defines fail-closed explicit Skill behavior'
 
 if [ "$failures" -ne 0 ]; then
   printf '\n%d Phase 3 contract(s) failing.\n' "$failures" >&2
