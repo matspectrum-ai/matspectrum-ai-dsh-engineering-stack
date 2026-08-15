@@ -1,0 +1,214 @@
+contract: deterministic-methodology-enforcement
+version: 1
+status: specified
+
+ownership:
+  source_of_truth: repository
+  upstream_runtime: pinned-dependency
+  implementation_kind: native-cordis-plugin
+  fork_required: false
+
+plugin:
+  canonical_path: profiles/engineering/plugins/methodology-guard.mjs
+  runtime_path: ${DSH_HOME}/profiles/engineering/plugins/methodology-guard.mjs
+  profile_mount: ./plugins/methodology-guard.mjs
+  required_extension_points:
+    - agent/pre-step
+    - llm/stream
+    - tools/pre-execute
+    - tools/result
+    - agent/turn-stopping
+
+state:
+  scope: per-agent-per-turn
+  fields:
+    turn: integer
+    required_skills: ordered-unique-managed-skill-names
+    completed_skills: ordered-successful-prefix
+    activating_user_text: string
+    captured_successful_tool_results: append-only-turn-local-observations
+    methodology_commit_succeeded: boolean
+  lifecycle:
+    initialize: qualifying direct user message at agent/pre-step
+    retain: tool-continuation steps in same turn
+    replace: later qualifying direct user turn
+    dispose: agent lifecycle / unreachable weak reference
+
+explicit_skill_preflight:
+  invariant: completed_skills is always a prefix of required_skills
+  next_expected: required_skills[length(completed_skills)]
+  tool_policy:
+    while_incomplete:
+      skill_expected_name:
+        decision: allow-through-downstream-policy
+      skill_other_name:
+        decision: deny
+      any_other_tool:
+        decision: deny
+    complete:
+      decision: delegate-to-downstream-policy
+  advancement:
+    event: tools/result
+    conditions:
+      - execution.agent matches state owner
+      - execution.name == skill
+      - execution.arguments.name == next_expected
+      - result.isError == false
+    effect: append next_expected exactly once
+  failure:
+    effect: no advancement
+  stop_gate:
+    while_incomplete:
+      event: agent/turn-stopping
+      effect: steer same turn with plugin-sourced notice naming next_expected
+    complete:
+      effect: no preflight steering
+
+model_output_boundary:
+  activation: methodology state exists for current agent turn and methodology_commit_succeeded == false
+  agent_resolution: llm request sessionId resolves to the live agent
+  stream_policy:
+    text_block:
+      block_start: suppress
+      text_delta: suppress
+      block_end: suppress
+    reasoning_block:
+      block_start: suppress
+      reasoning_delta: suppress
+      block_end: suppress
+    tool_call_block:
+      block_start: preserve
+      tool_call_delta: preserve
+      block_end: preserve
+    usage: preserve
+    finish: preserve
+  invariant: no uncommitted text or reasoning from an enforced methodology turn becomes the durable/user-visible assistant artifact
+
+engineering_commit_tool:
+  name: engineering_commit
+  visibility: model-facing
+  allowed_when: explicit Skill preflight complete
+  denied_when: explicit Skill preflight incomplete
+  success:
+    - methodology_commit_succeeded = true
+    - execution.concludeTurn is called
+  failure:
+    - methodology_commit_succeeded remains false
+    - result is an ordinary tool error or validation failure
+  output:
+    canonical_type: string
+    language: pt-BR
+    renderer: deterministic
+    role: only accepted user-visible methodology artifact for enforced turn
+
+fact:
+  fields:
+    id: non-empty-unique-string
+    source: user|repository|runtime
+    evidence: source-specific-object
+  user_evidence:
+    quote: non-empty-string
+    invariant: quote is exact substring of activating_user_text
+  repository_evidence:
+    path: workspace-relative-path
+    quote: non-empty-string
+    invariants:
+      - resolved path is inside agent session workspace
+      - path resolves to regular file
+      - quote is exact substring of current file contents
+  runtime_evidence:
+    tool: non-empty-string
+    quote: non-empty-string
+    invariants:
+      - same-turn successful captured tool result exists with matching tool name
+      - quote is exact substring of captured model-facing result text
+
+normative_sections:
+  sections:
+    - objectives
+    - requirements
+    - acceptance_criteria
+    - non_goals
+  item_type: fact-id
+  invariants:
+    - every referenced fact exists
+    - every referenced fact passed source validation
+
+planned_test:
+  fields:
+    kind: unit|component|contract|integration|acceptance|e2e|runtime-smoke
+    requirement_fact_ids: fact-id-list
+    expected_fact_ids: fact-id-list
+  invariants:
+    - all referenced facts are validated
+    - no free-form framework, filename or command field exists
+
+red:
+  fields:
+    kind: planned|observed
+    target_test_indexes: integer-list
+    observed_fact_ids: fact-id-list
+  planned:
+    invariant: observed_fact_ids is empty
+  observed:
+    invariants:
+      - observed_fact_ids is non-empty
+      - every observed fact source == runtime
+
+verification_item:
+  fields:
+    kind: focused-test|regression-suite|runtime-probe|build|typecheck|lint|diff-inspection|security-scan|custom
+    criterion_fact_ids: fact-id-list
+    concrete_command_fact_id: optional-fact-id
+  invariants:
+    - all criterion facts are validated
+    - when concrete_command_fact_id exists its fact source is repository or runtime
+
+turn_completion:
+  explicit_methodology_turn:
+    requires:
+      - explicit Skill preflight complete
+      - engineering_commit successful
+    otherwise: agent/turn-stopping steers a continuation instead of accepting natural completion
+
+runtime_materialization:
+  managed_plugin: methodology-guard.mjs
+  managed_manifest: managed-skills.txt
+  invariants:
+    - runtime plugin equals repository canonical plugin
+    - runtime managed-Skills manifest equals repository canonical manifest
+    - profile composition loads local plugin successfully
+
+security:
+  repository_path_traversal: deny
+  symlink_escape: deny-after-realpath
+  credentials: never-written-by-plugin
+  mutation:
+    planning_commit_tool: read-only
+    evidence_validation: read-only
+
+failure_modes:
+  explicit_skill_out_of_order:
+    classification: deterministic-policy
+    behavior: deny tool call with expected Skill name
+  non_skill_before_preflight:
+    classification: deterministic-policy
+    behavior: deny tool call
+  uncommitted_model_prose:
+    classification: deterministic-output-boundary
+    behavior: suppress text/reasoning stream blocks while preserving tool/control protocol
+  incomplete_preflight_stop:
+    classification: deterministic-policy
+    behavior: steer continuation
+  evidence_not_found:
+    classification: provenance
+    behavior: engineering_commit validation fails
+  path_escape:
+    classification: security
+    behavior: engineering_commit validation fails closed
+  unknown_fact_reference:
+    classification: contract
+    behavior: engineering_commit validation fails
+  missing_commit_stop:
+    classification: deterministic-policy
+    behavior: steer continuation requesting engineering_commit

@@ -1,0 +1,90 @@
+name: Engineering Skills
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  skills-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate shell syntax
+        run: |
+          sh -n tests/acceptance/skills_contract.sh
+          sh -n tests/acceptance/methodology_enforcement_contract.sh
+          sh -n scripts/bootstrap
+          sh -n scripts/doctor
+
+      - name: Run Phase 3 acceptance contracts
+        run: |
+          sh tests/acceptance/skills_contract.sh
+          sh tests/acceptance/methodology_enforcement_contract.sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Activate pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+          test "$(pnpm --version)" = "11.7.0"
+
+      - name: Install canonical runtime graph
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare unrelated skill and managed drift
+        run: |
+          mkdir -p "$RUNNER_TEMP/agents-home/skills/user-sentinel"
+          cat > "$RUNNER_TEMP/agents-home/skills/user-sentinel/SKILL.md" <<'EOF'
+          ---
+          name: user-sentinel
+          description: "Unrelated user-owned skill used only to prove preservation."
+          ---
+          # User Sentinel
+          This bundle must survive stack bootstrap unchanged.
+          EOF
+          cp "$RUNNER_TEMP/agents-home/skills/user-sentinel/SKILL.md" "$RUNNER_TEMP/user-sentinel.before"
+
+          mkdir -p "$RUNNER_TEMP/agents-home/skills/problem-analysis"
+          printf '%s\n' 'divergent managed skill sentinel' > "$RUNNER_TEMP/agents-home/skills/problem-analysis/SKILL.md"
+
+      - name: Bootstrap isolated skills runtime
+        run: |
+          DSH_HOME="$RUNNER_TEMP/dsh-home" \
+          DSH_AGENTS_HOME="$RUNNER_TEMP/agents-home" \
+          DSH_ENGINEERING_BIN_DIR="$RUNNER_TEMP/bin" \
+          ./scripts/bootstrap
+
+      - name: Verify preservation and drift repair
+        run: |
+          cmp "$RUNNER_TEMP/user-sentinel.before" "$RUNNER_TEMP/agents-home/skills/user-sentinel/SKILL.md"
+          diff -qr .agents/skills/problem-analysis "$RUNNER_TEMP/agents-home/skills/problem-analysis"
+          test -n "$(find "$RUNNER_TEMP/agents-home/backups" -type f -path '*/problem-analysis/SKILL.md' -print -quit)"
+          grep -Fq 'divergent managed skill sentinel' "$(find "$RUNNER_TEMP/agents-home/backups" -type f -path '*/problem-analysis/SKILL.md' -print -quit)"
+
+      - name: Verify bootstrap idempotence
+        run: |
+          before_count=$(find "$RUNNER_TEMP/agents-home/backups" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+          DSH_HOME="$RUNNER_TEMP/dsh-home" \
+          DSH_AGENTS_HOME="$RUNNER_TEMP/agents-home" \
+          DSH_ENGINEERING_BIN_DIR="$RUNNER_TEMP/bin" \
+          ./scripts/bootstrap
+          after_count=$(find "$RUNNER_TEMP/agents-home/backups" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+          test "$before_count" -eq "$after_count"
+          cmp "$RUNNER_TEMP/user-sentinel.before" "$RUNNER_TEMP/agents-home/skills/user-sentinel/SKILL.md"
+
+      - name: Verify isolated doctor
+        run: |
+          DSH_HOME="$RUNNER_TEMP/dsh-home" \
+          DSH_AGENTS_HOME="$RUNNER_TEMP/agents-home" \
+          DSH_ENGINEERING_BIN_DIR="$RUNNER_TEMP/bin" \
+          ./scripts/doctor

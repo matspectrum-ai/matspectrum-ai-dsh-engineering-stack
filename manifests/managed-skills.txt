@@ -1,0 +1,14 @@
+problem-analysis
+specification-driven-development
+contract-driven-development
+test-driven-development
+architecture
+debugging
+code-review
+security-review
+verification
+git-workflow
+api-design
+database-migrations
+production-readiness
+graph-engineering

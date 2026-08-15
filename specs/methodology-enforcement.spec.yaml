@@ -1,0 +1,179 @@
+feature: deterministic-methodology-enforcement
+status: specified
+schema_version: 1
+
+problem:
+  evidence:
+    - both omniroute auto/best-coding and auto/coding:reliable can receive the repository-owned engineering Skills and still emit unsupported normative claims
+    - auto/best-coding additionally skipped an explicitly requested Skill in a valid clean-session E2E
+    - auto/coding:reliable completed the four-Skill preflight but still invented API contract values
+  conclusion:
+    - prompt/persona text is advisory and is not a sufficient correctness boundary
+    - Phase 3 requires native harness enforcement for process invariants and an evidence-grounded commit boundary for normative planning artifacts
+
+objectives:
+  - enforce explicitly requested Skill loading as process state instead of model self-report
+  - preserve exact user-requested Skill order
+  - prevent non-Skill tool execution while an explicit Skill preflight is incomplete
+  - make successful Skill tool results the only evidence that advances explicit preflight state
+  - suppress uncommitted model prose while a methodology gate is active so speculative draft text does not reach the durable/user-visible assistant transcript
+  - prevent a turn from naturally completing while its explicit Skill preflight remains incomplete
+  - provide a terminal evidence-grounded engineering planning commit tool
+  - prevent the committed planning artifact from introducing normative values that have no registered evidence
+  - keep the implementation repository-owned and loaded through documented DSH Cordis extension points without forking DSH
+
+upstream_mechanisms:
+  agent_pre_step:
+    purpose: detect current-turn explicit managed-Skill requests and initialize enforcement state
+  llm_stream:
+    purpose: filter conversation-model output while methodology enforcement is active, preserving tool-call protocol/control chunks while suppressing text and reasoning until a validated terminal commit
+  tools_pre_execute:
+    purpose: deny out-of-order Skill calls and deny other model-facing tools until explicit preflight completes
+  tools_result:
+    purpose: advance preflight only from authoritative successful Skill results and capture successful evidence-producing tool results
+  agent_turn_stopping:
+    purpose: steer another step when a required preflight or methodology commit has not completed
+  local_cordis_plugin:
+    purpose: ship enforcement as a repository-owned native extension loaded by the engineering profile
+
+explicit_skill_preflight:
+  activation:
+    - inspect direct user-role text in the proposed turn input
+    - activate only when the message explicitly references Skill loading/use and contains one or more exact managed Skill names
+  requested_order:
+    - derive by textual occurrence order in the activating user message
+    - de-duplicate while preserving first occurrence
+  active_gate:
+    expected_tool: skill
+    expected_argument: next requested Skill name
+    behavior:
+      correct_skill_call: allow
+      wrong_skill_call: deny with expected Skill name
+      non_skill_tool_call: deny until preflight is complete
+  advancement:
+    requires:
+      - tool name is skill
+      - requested name equals current expected Skill
+      - authoritative tool result is successful
+    failed_skill_result:
+      behavior: remain blocked and preserve expected Skill
+  model_output_policy:
+    before_methodology_commit:
+      - suppress text-delta blocks
+      - suppress reasoning-delta blocks
+      - suppress matching text/reasoning block-start and block-end chunks
+      - preserve tool-call chunks, usage and finish control chunks
+    rationale: intermediate model prose is advisory/uncommitted and must not become the user-visible planning artifact
+  natural_stop_before_complete:
+    behavior: steer another same-turn step instructing the agent to load the next required Skill
+
+methodology_commit:
+  tool_name: engineering_commit
+  execution_mode: exclusive
+  terminal_on_success: true
+  activation:
+    initial_scope: turns with explicit methodology Skill preflight
+  artifact:
+    facts:
+      fields:
+        - id
+        - source
+        - evidence
+      source_kinds:
+        - user
+        - repository
+        - runtime
+    unknowns:
+      type: string-list
+    objectives:
+      type: fact-id-list
+    requirements:
+      type: fact-id-list
+    acceptance_criteria:
+      type: fact-id-list
+    non_goals:
+      type: fact-id-list
+    planned_tests:
+      fields:
+        - kind
+        - requirement_fact_ids
+        - expected_fact_ids
+    red:
+      fields:
+        - kind
+        - target_test_indexes
+        - observed_fact_ids
+      kinds:
+        - planned
+        - observed
+    verification:
+      fields:
+        - kind
+        - criterion_fact_ids
+        - concrete_command_fact_id
+  provenance_validation:
+    user:
+      - evidence must be an exact non-empty substring of the activating direct user message
+    repository:
+      - evidence must identify a workspace-relative path and exact non-empty excerpt
+      - resolved path must remain inside the session workspace
+      - excerpt must exist in the current file contents
+    runtime:
+      - evidence must identify a successful observed tool name and exact non-empty excerpt
+      - excerpt must exist in a successful authoritative tool result captured in the same agent turn
+  normative_reference_rule:
+    - objectives, requirements, acceptance criteria and non-goals may reference only validated fact ids
+    - they do not accept free-form normative strings
+  test_rule:
+    - expected behavior is represented only through validated fact ids
+    - test framework, file name and command are not free-form fields
+  red_rule:
+    planned:
+      - observed_fact_ids must be empty
+    observed:
+      - every observed fact must have runtime provenance
+  verification_rule:
+    - concrete command is optional
+    - when present it must reference a validated repository or runtime fact
+  rendering:
+    - tool renders a deterministic pt-BR planning report from validated facts, unknowns and typed sections
+    - unsupported free-form normative behavior is not rendered because it has no schema position
+    - engineering_commit tool result is the only accepted user-visible methodology artifact for an enforced turn
+
+bootstrap:
+  canonical_plugin: profiles/engineering/plugins/methodology-guard.mjs
+  runtime_plugin: ${DSH_HOME}/profiles/engineering/plugins/methodology-guard.mjs
+  runtime_manifest: ${DSH_HOME}/profiles/engineering/managed-skills.txt
+  behavior:
+    - backup divergent managed plugin before replacement
+    - materialize canonical plugin
+    - materialize canonical managed-Skills manifest for runtime plugin discovery
+    - preserve unrelated profile files
+
+acceptance_criteria:
+  - enforcement plugin is loaded by the engineering profile
+  - plugin can be imported by the materialized runtime profile
+  - explicit Skill names are detected in exact user order
+  - duplicate Skill mentions do not cause duplicate required calls
+  - out-of-order Skill calls are denied while preflight is active
+  - non-Skill tools are denied while preflight is active
+  - failed Skill results do not advance preflight
+  - successful expected Skill results advance preflight exactly once
+  - text and reasoning chunks are suppressed while an enforced methodology turn is uncommitted
+  - tool-call, usage and finish chunks remain available to the agent loop while output suppression is active
+  - incomplete preflight cannot naturally end the turn
+  - engineering_commit rejects unverified user evidence
+  - engineering_commit rejects repository paths escaping the workspace
+  - engineering_commit rejects repository excerpts not present in the named file
+  - engineering_commit rejects runtime evidence not captured from a successful tool result in the same turn
+  - engineering_commit rejects unknown normative fact references
+  - planned RED rejects observed evidence
+  - observed RED requires runtime evidence
+  - successful engineering_commit concludes the turn and returns deterministic pt-BR content
+
+non_goals:
+  - fork or patch the upstream DeepSeek Harness runtime
+  - solve semantic entailment using another free-form prompt
+  - claim that deterministic provenance validation proves every possible semantic implication
+  - implement LSP or MCP in this phase
+  - enforce project-specific business rules globally
