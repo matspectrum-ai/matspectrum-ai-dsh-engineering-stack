@@ -78,6 +78,9 @@ require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'load the 
 require_text '.agents/skills/problem-analysis/SKILL.md' 'Do not invent requirements, defaults, status codes, response schemas, authentication policy, dependencies, observability signals, or failure behavior.' 'problem analysis explicitly forbids invented engineering facts'
 require_text '.agents/skills/specification-driven-development/SKILL.md' 'A specification must not turn an unresolved unknown into a requirement, acceptance criterion, edge case, failure mode, security rule, observability signal, or rollback behavior.' 'SDD forbids promoting unknowns into normative requirements'
 require_text '.agents/skills/specification-driven-development/SKILL.md' 'If evidence is insufficient, keep the field unresolved or omit it and record the decision as an unknown.' 'SDD defines safe behavior when evidence is insufficient'
+require_text '.agents/skills/test-driven-development/SKILL.md' 'Do not invent the current system response merely to describe RED.' 'TDD forbids invented baseline behavior'
+require_text '.agents/skills/test-driven-development/SKILL.md' 'If the baseline is unknown, describe RED as the specified assertion failing for the missing behavior and defer the exact observed status/body until the test is actually run.' 'TDD defines evidence-safe RED planning'
+require_text '.agents/skills/verification/SKILL.md' 'Never classify security, operational, compatibility, data-loss, or rollback risk as zero/none without direct evidence.' 'verification forbids unsupported zero-risk claims'
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Never invent engineering requirements or present assumptions as facts.' 'persona enforces anti-speculation at the top level'
 
 if [ "$failures" -ne 0 ]; then
