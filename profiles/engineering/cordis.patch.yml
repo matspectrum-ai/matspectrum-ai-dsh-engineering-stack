@@ -32,6 +32,12 @@
     provider: omniroute
     model: auto/best-coding
 
+# Repository-owned deterministic methodology policy. This plugin uses official
+# DSH lifecycle/tool/LLM interception seams and does not patch the DSH runtime.
+- insert:
+    - id: methodology-guard
+      name: './plugins/methodology-guard.mjs'
+
 # Persistent terminal is opt-in upstream. The owner-scoped terminal registry
 # and local Bash PTY backend are process services; the six model-facing tools
 # are exposed only by agent-presets/matspectrum-engineering.
