@@ -29,7 +29,7 @@ Convert a request into an evidence-backed problem statement. Do not solve the pr
    - Prefer primary evidence: source, contracts, tests, generated config, runtime output.
 
 3. **Map scope**
-   - Identify affected modules, APIs, data stores, jobs, UI surfaces, external services, and deployment boundaries.
+   - Identify affected modules, APIs, data stores, jobs, UI surfaces, external services, and deployment boundaries only when evidence supports them.
    - Identify what is explicitly out of scope.
    - Note shared code paths where a local-looking change may have wider effects.
 
@@ -39,6 +39,7 @@ Convert a request into an evidence-backed problem statement. Do not solve the pr
    - Backward compatibility requirements.
    - Performance, latency, cost, data-retention, or operational constraints.
    - Existing architectural decisions that constrain the solution.
+   - If a constraint is not known, mark it unknown rather than inventing a reasonable default.
 
 5. **Identify unknowns**
    - Mark each unknown explicitly.
@@ -47,14 +48,9 @@ Convert a request into an evidence-backed problem statement. Do not solve the pr
    - Never convert an unknown into an assumption silently.
 
 6. **Enumerate failure modes and edge cases**
-   - Invalid input.
-   - Partial failure.
-   - Retries and duplicate execution.
-   - Concurrent access.
-   - Missing dependencies.
-   - Stale state or version drift.
-   - Permission denial.
-   - Empty, boundary, and malformed states.
+   - Derive concrete cases from the requested behavior, repository evidence, existing contracts, or user-provided requirements.
+   - Generic engineering checklists are prompts for investigation, not permission to assert that those cases apply.
+   - Candidate categories include invalid input, partial failure, retries, concurrency, missing dependencies, stale state, permission denial, and boundary states only when relevant evidence exists.
 
 7. **Assess risk**
    - Correctness risk.
@@ -63,10 +59,25 @@ Convert a request into an evidence-backed problem statement. Do not solve the pr
    - Compatibility risk.
    - Operational and rollback risk.
    - Observability gaps that would hide failure.
+   - Classify unsupported risk claims as UNVERIFIED rather than PASS/zero-risk.
 
 8. **Define success evidence**
    - What test, probe, artifact, or runtime observation will prove each important outcome?
    - Distinguish static composition checks from real runtime behavior.
+   - Do not prescribe a concrete command, status code, schema, metric, dependency state, or runtime behavior until its contract is known.
+
+## Evidence discipline for hypothetical or empty workspaces
+
+When the task is hypothetical, the workspace is empty, or repository evidence is unavailable:
+
+- treat only the user's explicit request as known;
+- state that implementation framework, existing routing behavior, response contract, authentication policy, dependencies, observability, deployment model, and rollback constraints are unknown unless the user supplied them;
+- do not infer conventional behavior merely because it is common practice;
+- if useful, alternatives may be listed only as clearly labeled options for later decision, never as requirements or acceptance criteria;
+- do not claim that a missing endpoint returns 404, a dependency failure returns 503/504, an endpoint is unauthenticated, or a metric exists unless evidence establishes that behavior;
+- never call a security or operational risk zero without direct evidence.
+
+Do not invent requirements, defaults, status codes, response schemas, authentication policy, dependencies, observability signals, or failure behavior.
 
 ## Output contract
 
@@ -75,12 +86,14 @@ Produce a concise Problem Analysis containing:
 - requested outcome;
 - current observed behavior;
 - relevant repository/runtime evidence;
-- affected scope;
+- affected scope supported by evidence;
 - constraints;
 - explicit unknowns;
-- risks and failure modes;
-- success criteria;
+- evidence-backed risks and failure modes;
+- success criteria that are actually known;
 - recommended next artifact, normally a specification.
+
+When evidence is insufficient, an honest short analysis with unresolved unknowns is better than a detailed speculative one.
 
 ## Prohibitions
 
@@ -88,3 +101,4 @@ Produce a concise Problem Analysis containing:
 - Do not claim a root cause without evidence.
 - Do not assume a dependency is installed, authenticated, reachable, or compatible merely because configuration mentions it.
 - Do not treat a passing static config dump as proof that runtime loading or end-to-end behavior works.
+- Do not promote common conventions into project requirements without repository or user evidence.
