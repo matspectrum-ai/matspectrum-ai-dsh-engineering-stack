@@ -1,0 +1,102 @@
+contract: engineering-skills
+version: 1
+status: specified
+
+canonical:
+  root: .agents/skills
+  shape: <name>/SKILL.md
+  nested_discovery: forbidden
+  source_of_truth: repository
+
+skill_entry:
+  required_frontmatter:
+    name: kebab-case-string
+    description: non-empty-string
+  optional_frontmatter:
+    whenToUse: string
+    metadata: object
+    disable-model-invocation: boolean
+    user-invocable: boolean
+  invariants:
+    - frontmatter.name == bundle-directory-name
+    - no literal credential values
+    - no machine-specific absolute paths
+    - body contains actionable operational guidance rather than generic prose
+    - skill does not claim unavailable tools as guaranteed capabilities
+
+runtime:
+  agents_home: ${DSH_AGENTS_HOME:-~/.agents}
+  root: ${agents_home}/skills
+  managed_names:
+    - problem-analysis
+    - specification-driven-development
+    - contract-driven-development
+    - test-driven-development
+    - architecture
+    - debugging
+    - code-review
+    - security-review
+    - verification
+    - git-workflow
+    - api-design
+    - database-migrations
+    - production-readiness
+    - graph-engineering
+  unrelated_entries:
+    behavior: preserve
+  managed_collision:
+    behavior: backup-divergent-then-materialize-canonical
+  repeated_materialization:
+    behavior: idempotent
+
+methodology:
+  ordered_engineering_pipeline:
+    - problem-analysis
+    - specification
+    - contracts
+    - tests-red
+    - implementation-green
+    - refactor
+    - verification
+    - technical-explanation
+  gates:
+    implementation:
+      requires:
+        - problem analysis
+        - specification
+        - contracts
+        - red test evidence when behavior is testable
+    completion:
+      requires:
+        - verification evidence
+        - remaining risks stated
+        - no unsupported success claims
+  unknowns:
+    behavior: state-explicitly-and-resolve-by-inspection-when-possible
+
+language:
+  default_user_response_language: pt-BR
+  override: explicit-user-request
+
+failure_modes:
+  canonical_skill_missing:
+    classification: repository-contract
+    behavior: fail acceptance and doctor
+  malformed_frontmatter:
+    classification: repository-contract
+    behavior: fail acceptance and doctor
+  runtime_skill_missing:
+    classification: runtime-drift
+    behavior: fail doctor
+  runtime_skill_diverged:
+    classification: runtime-drift
+    behavior: backup during bootstrap then restore canonical state
+  unrelated_user_skill_present:
+    classification: allowed-extension
+    behavior: ignore for stack-health purposes
+
+security:
+  secrets_in_skills: forbidden
+  unrestricted_host_access_assumption: forbidden
+  destructive_actions:
+    policy: require explicit task need and applicable approval boundary
