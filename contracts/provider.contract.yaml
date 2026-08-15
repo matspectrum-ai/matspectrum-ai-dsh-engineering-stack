@@ -6,16 +6,28 @@ required_fields:
   protocol: enum[openai-completions]
   base_url: uri
   credential_ref: env-var-name
-  default_model: string
+  composition_default_model: string
 
 invariants:
   - provider_id == omniroute
   - base_url == http://127.0.0.1:20128/v1
   - credential_ref == OMNIROUTE_API_KEY
-  - default_model == auto/best-coding
+  - composition_default_model == auto/best-coding
   - no literal credential value is stored in repository configuration
   - provider health is checked independently from DSH process health
-  - model existence is checked against /v1/models before end-to-end validation
+  - composition-default model existence is checked against /v1/models before end-to-end validation
+  - a persisted DSH agent-default-model user setting may override the composition default
+  - a persisted picker override is not repository configuration drift
+
+selection_precedence:
+  base_layer:
+    source: profiles/engineering/cordis.patch.yml
+    provider: omniroute
+    model: auto/best-coding
+  user_layer:
+    source: DSH settings.yaml agent-default-model section
+    precedence: higher-than-base-layer
+    behavior: successful picker selection becomes the default for subsequent blank/new sessions
 
 failure_modes:
   missing_credential:
@@ -27,7 +39,7 @@ failure_modes:
   invalid_json:
     classification: protocol
     behavior: warn in general doctor; fail end-to-end provider gate
-  default_model_missing:
+  composition_default_model_missing:
     classification: configuration-drift
     behavior: fail provider validation
 
