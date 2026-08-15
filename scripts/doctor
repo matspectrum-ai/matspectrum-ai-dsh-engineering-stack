@@ -230,6 +230,10 @@ PROFILE_DST="$DSH_HOME/profiles/engineering"
 PRESET_SRC="$ROOT/agent-presets/matspectrum-engineering"
 PRESET_DST="$DSH_HOME/.agent-presets/matspectrum-engineering"
 PROFILE_RUNTIME_PACKAGES='@deepseek-ai/dsh-terminal @deepseek-ai/dsh-terminal-bash @deepseek-ai/dsh-tool-terminal'
+METHODOLOGY_PLUGIN_SRC="$PROFILE_SRC/plugins/methodology-guard.mjs"
+METHODOLOGY_PLUGIN_DST="$PROFILE_DST/plugins/methodology-guard.mjs"
+SKILLS_MANIFEST_SRC="$ROOT/manifests/managed-skills.txt"
+PROFILE_SKILLS_MANIFEST_DST="$PROFILE_DST/managed-skills.txt"
 
 for name in package.json cordis.patch.yml pnpm-workspace.yaml; do
   if [ ! -f "$PROFILE_DST/$name" ]; then
@@ -240,6 +244,28 @@ for name in package.json cordis.patch.yml pnpm-workspace.yaml; do
     fail "runtime profile $name has drifted from repository canonical state"
   fi
 done
+
+if [ ! -f "$METHODOLOGY_PLUGIN_DST" ]; then
+  fail "runtime methodology guard is missing: $METHODOLOGY_PLUGIN_DST"
+elif cmp -s "$METHODOLOGY_PLUGIN_SRC" "$METHODOLOGY_PLUGIN_DST"; then
+  pass 'runtime methodology guard matches repository canonical state'
+else
+  fail 'runtime methodology guard has drifted from repository canonical state'
+fi
+
+if [ ! -f "$PROFILE_SKILLS_MANIFEST_DST" ]; then
+  fail "runtime profile managed-Skills manifest is missing: $PROFILE_SKILLS_MANIFEST_DST"
+elif cmp -s "$SKILLS_MANIFEST_SRC" "$PROFILE_SKILLS_MANIFEST_DST"; then
+  pass 'runtime profile managed-Skills manifest matches repository canonical state'
+else
+  fail 'runtime profile managed-Skills manifest has drifted from repository canonical state'
+fi
+
+if [ -f "$METHODOLOGY_PLUGIN_DST" ] && node --input-type=module -e 'import { pathToFileURL } from "node:url"; await import(pathToFileURL(process.argv[1]).href)' "$METHODOLOGY_PLUGIN_DST" >/dev/null 2>&1; then
+  pass 'runtime methodology guard imports successfully'
+else
+  fail 'runtime methodology guard cannot be imported'
+fi
 
 PROFILE_NODE_MODULES_SRC="$PROFILE_SRC/node_modules"
 PROFILE_NODE_MODULES_DST="$PROFILE_DST/node_modules"
@@ -288,6 +314,12 @@ if [ -x "$DSH_BIN" ] && [ -f "$PROFILE_DST/package.json" ]; then
       pass 'official DSH Web UI surface is present in the composed profile'
     else
       fail 'composed engineering profile does not expose the expected Web UI surface'
+    fi
+
+    if grep -Fq 'methodology-guard' "$DUMP_FILE" || grep -Fq './plugins/methodology-guard.mjs' "$DUMP_FILE"; then
+      pass 'native methodology guard is present in the composed profile'
+    else
+      fail 'native methodology guard is missing from the composed profile'
     fi
 
     if grep -Fq '@deepseek-ai/dsh-terminal' "$DUMP_FILE"; then
