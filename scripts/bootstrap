@@ -17,6 +17,7 @@ require_command node
 require_command npm
 require_command cp
 require_command cmp
+require_command diff
 require_command mkdir
 require_command ln
 require_command chmod
@@ -92,20 +93,33 @@ for pkg in $PROFILE_RUNTIME_PACKAGES; do
 done
 
 DSH_HOME=${DSH_HOME:-"$HOME/.dsh"}
+DSH_AGENTS_HOME=${DSH_AGENTS_HOME:-"$HOME/.agents"}
 PROFILE_DST="$DSH_HOME/profiles/engineering"
 PRESET_SRC="$ROOT/agent-presets/matspectrum-engineering"
 PRESET_DST="$DSH_HOME/.agent-presets/matspectrum-engineering"
+SKILLS_MANIFEST="$ROOT/manifests/managed-skills.txt"
+SKILLS_SRC="$ROOT/.agents/skills"
+SKILLS_DST="$DSH_AGENTS_HOME/skills"
 
-mkdir -p "$PROFILE_DST" "$PRESET_DST"
+[ -f "$SKILLS_MANIFEST" ] || fail "managed skills manifest missing: $SKILLS_MANIFEST"
+mkdir -p "$PROFILE_DST" "$PRESET_DST" "$SKILLS_DST"
 chmod 700 "$PRESET_DST"
 
 STAMP=$(date +%Y%m%d-%H%M%S)
 BACKUP_DIR=""
+SKILL_BACKUP_DIR=""
 
 ensure_backup_dir() {
   if [ -z "$BACKUP_DIR" ]; then
     BACKUP_DIR="$DSH_HOME/backups/engineering-$STAMP"
     mkdir -p "$BACKUP_DIR"
+  fi
+}
+
+ensure_skill_backup_dir() {
+  if [ -z "$SKILL_BACKUP_DIR" ]; then
+    SKILL_BACKUP_DIR="$DSH_AGENTS_HOME/backups/matspectrum-engineering-$STAMP"
+    mkdir -p "$SKILL_BACKUP_DIR"
   fi
 }
 
@@ -122,6 +136,29 @@ sync_runtime_file() {
     info "backed up divergent $description: $dst"
   fi
   cp "$src" "$dst"
+}
+
+sync_skill_bundle() {
+  skill=$1
+  src="$SKILLS_SRC/$skill"
+  dst="$SKILLS_DST/$skill"
+
+  [ -d "$src" ] || fail "canonical managed skill directory missing: $src"
+  [ -f "$src/SKILL.md" ] || fail "canonical managed skill file missing: $src/SKILL.md"
+
+  if [ -d "$dst" ] && [ ! -L "$dst" ] && diff -qr "$src" "$dst" >/dev/null 2>&1; then
+    return
+  fi
+
+  if [ -e "$dst" ] || [ -L "$dst" ]; then
+    ensure_skill_backup_dir
+    mv "$dst" "$SKILL_BACKUP_DIR/$skill"
+    info "backed up divergent managed skill: $dst"
+  fi
+
+  cp -R "$src" "$dst"
+  chmod 700 "$dst"
+  chmod 600 "$dst/SKILL.md"
 }
 
 info "materializing canonical engineering profile into $PROFILE_DST"
@@ -156,8 +193,17 @@ for name in agent.cordis.yml preset.yml; do
   chmod 600 "$PRESET_DST/$name"
 done
 
+info "materializing canonical engineering skills into $SKILLS_DST"
+while IFS= read -r skill || [ -n "$skill" ]; do
+  [ -n "$skill" ] || continue
+  case "$skill" in
+    *[!a-z0-9-]*|'') fail "invalid managed skill name in manifest: $skill" ;;
+  esac
+  sync_skill_bundle "$skill"
+done < "$SKILLS_MANIFEST"
+
 info "validating composed engineering profile"
-DSH_HOME="$DSH_HOME" "$DSH_BIN" --profile engineering --dump-config >/dev/null
+DSH_HOME="$DSH_HOME" DSH_AGENTS_HOME="$DSH_AGENTS_HOME" "$DSH_BIN" --profile engineering --dump-config >/dev/null
 
 BIN_DIR=${DSH_ENGINEERING_BIN_DIR:-"$HOME/.local/bin"}
 LAUNCHER="$BIN_DIR/dsh-engineering"
@@ -181,7 +227,7 @@ if command -v dsh >/dev/null 2>&1; then
 fi
 
 info "running doctor"
-DSH_HOME="$DSH_HOME" DSH_ENGINEERING_BIN_DIR="$BIN_DIR" sh "$ROOT/scripts/doctor"
+DSH_HOME="$DSH_HOME" DSH_AGENTS_HOME="$DSH_AGENTS_HOME" DSH_ENGINEERING_BIN_DIR="$BIN_DIR" sh "$ROOT/scripts/doctor"
 
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
