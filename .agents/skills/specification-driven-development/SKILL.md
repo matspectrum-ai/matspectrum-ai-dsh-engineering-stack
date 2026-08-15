@@ -26,7 +26,7 @@ Prefer YAML for machine-readable engineering specs. At minimum include the field
 
 ```yaml
 feature: <stable-name>
-status: specified
+status: draft
 schema_version: 1
 
 objectives:
@@ -59,7 +59,7 @@ rollback:
   - <recovery or reversal strategy>
 
 non_goals:
-  - <explicit exclusion>
+  - <explicit evidence-backed exclusion>
 
 unknowns:
   - <only unresolved, explicit unknowns>
@@ -83,6 +83,26 @@ If evidence is insufficient, keep the field unresolved or omit it and record the
 Common conventions are not evidence. Do not invent response status codes, response bodies, authentication policy, dependency checks, metrics, timeouts, error shapes, retries, rollback procedures, or operational behavior because they are typical for similar systems.
 
 For hypothetical planning with no repository evidence, a minimal spec should contain only the behavior explicitly requested by the user plus explicit unknowns. For example, a request to add `GET /health` establishes the method and path; it does not by itself establish status code, body schema, authentication, dependency semantics, metrics, latency target, or failure behavior.
+
+## Scope classification rule
+
+A `non_goal` is a deliberate exclusion from scope. It is normative just like a requirement.
+
+An unresolved or pending decision is not a non-goal. Put it under `unknowns` until repository evidence or an explicit user decision excludes it from scope.
+
+Do not write statements such as "do not add authentication", "do not check dependencies", or "do not add metrics" merely because those decisions are unknown. Omitting unsupported behavior from the current requirement set is sufficient; do not convert absence of evidence into a prohibition.
+
+## Readiness rule
+
+Use specification status to communicate readiness accurately.
+
+- `draft` or repository-equivalent: important decisions are still unresolved;
+- `specified` or repository-equivalent: normative behavior is sufficiently resolved for the next contractual/test stage;
+- `implementation-ready`: all blocking decisions required to implement and test deterministically are resolved.
+
+Do not mark a specification implementation-ready while blocking unknowns remain unresolved.
+
+If the repository uses different status values, preserve its vocabulary while retaining the same readiness semantics. In a hypothetical or empty workspace with unresolved status code, response contract, auth policy, test harness, or other implementation-blocking decisions, keep the spec non-ready rather than pretending those decisions are settled.
 
 ## Rules
 
