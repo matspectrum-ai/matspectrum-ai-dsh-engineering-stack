@@ -16,6 +16,7 @@ objectives:
   - preserve exact user-requested Skill order
   - prevent non-Skill tool execution while an explicit Skill preflight is incomplete
   - make successful Skill tool results the only evidence that advances explicit preflight state
+  - suppress uncommitted model prose while a methodology gate is active so speculative draft text does not reach the durable/user-visible assistant transcript
   - prevent a turn from naturally completing while its explicit Skill preflight remains incomplete
   - provide a terminal evidence-grounded engineering planning commit tool
   - prevent the committed planning artifact from introducing normative values that have no registered evidence
@@ -24,6 +25,8 @@ objectives:
 upstream_mechanisms:
   agent_pre_step:
     purpose: detect current-turn explicit managed-Skill requests and initialize enforcement state
+  llm_stream:
+    purpose: filter conversation-model output while methodology enforcement is active, preserving tool-call protocol/control chunks while suppressing text and reasoning until a validated terminal commit
   tools_pre_execute:
     purpose: deny out-of-order Skill calls and deny other model-facing tools until explicit preflight completes
   tools_result:
@@ -54,6 +57,13 @@ explicit_skill_preflight:
       - authoritative tool result is successful
     failed_skill_result:
       behavior: remain blocked and preserve expected Skill
+  model_output_policy:
+    before_methodology_commit:
+      - suppress text-delta blocks
+      - suppress reasoning-delta blocks
+      - suppress matching text/reasoning block-start and block-end chunks
+      - preserve tool-call chunks, usage and finish control chunks
+    rationale: intermediate model prose is advisory/uncommitted and must not become the user-visible planning artifact
   natural_stop_before_complete:
     behavior: steer another same-turn step instructing the agent to load the next required Skill
 
@@ -128,13 +138,16 @@ methodology_commit:
   rendering:
     - tool renders a deterministic pt-BR planning report from validated facts, unknowns and typed sections
     - unsupported free-form normative behavior is not rendered because it has no schema position
+    - engineering_commit tool result is the only accepted user-visible methodology artifact for an enforced turn
 
 bootstrap:
   canonical_plugin: profiles/engineering/plugins/methodology-guard.mjs
   runtime_plugin: ${DSH_HOME}/profiles/engineering/plugins/methodology-guard.mjs
+  runtime_manifest: ${DSH_HOME}/profiles/engineering/managed-skills.txt
   behavior:
     - backup divergent managed plugin before replacement
     - materialize canonical plugin
+    - materialize canonical managed-Skills manifest for runtime plugin discovery
     - preserve unrelated profile files
 
 acceptance_criteria:
@@ -146,6 +159,8 @@ acceptance_criteria:
   - non-Skill tools are denied while preflight is active
   - failed Skill results do not advance preflight
   - successful expected Skill results advance preflight exactly once
+  - text and reasoning chunks are suppressed while an enforced methodology turn is uncommitted
+  - tool-call, usage and finish chunks remain available to the agent loop while output suppression is active
   - incomplete preflight cannot naturally end the turn
   - engineering_commit rejects unverified user evidence
   - engineering_commit rejects repository paths escaping the workspace
