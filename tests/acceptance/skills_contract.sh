@@ -27,24 +27,52 @@ printf '%s\n' 'DSH Engineering Stack - Phase 3 skills contract'
 
 require_file 'specs/skills-library.spec.yaml' 'skills specification exists'
 require_file 'contracts/skills.contract.yaml' 'skills contract exists'
+require_file 'manifests/managed-skills.txt' 'managed skills manifest exists'
 
-skills='problem-analysis specification-driven-development contract-driven-development test-driven-development architecture debugging code-review security-review verification git-workflow api-design database-migrations production-readiness graph-engineering'
+skill_count=0
+while IFS= read -r skill || [ -n "$skill" ]; do
+  [ -n "$skill" ] || continue
+  skill_count=$((skill_count + 1))
 
-for skill in $skills; do
+  case "$skill" in
+    *[!a-z0-9-]*|'')
+      fail "managed skill name is kebab-case: $skill"
+      continue
+      ;;
+    *) pass "managed skill name is kebab-case: $skill" ;;
+  esac
+
   path=".agents/skills/$skill/SKILL.md"
   require_file "$path" "canonical skill exists: $skill"
+  require_text "$path" '---' "skill has YAML frontmatter delimiter: $skill"
   require_text "$path" "name: $skill" "skill frontmatter name matches directory: $skill"
   require_text "$path" 'description:' "skill has required description: $skill"
-done
+done < manifests/managed-skills.txt
+
+if [ "$skill_count" -eq 14 ]; then
+  pass 'managed skills manifest contains exactly 14 Phase 3 skills'
+else
+  fail "managed skills manifest expected 14 entries, found $skill_count"
+fi
+
+if grep -R -n '/home/' .agents/skills >/dev/null 2>&1; then
+  fail 'canonical skills do not contain machine-specific /home paths'
+else
+  pass 'canonical skills contain no machine-specific /home paths'
+fi
 
 require_text 'scripts/bootstrap' 'DSH_AGENTS_HOME' 'bootstrap supports explicit Agents home'
-require_text 'scripts/bootstrap' '.agents/skills' 'bootstrap materializes repository canonical skills'
+require_text 'scripts/bootstrap' 'manifests/managed-skills.txt' 'bootstrap reads canonical managed skills manifest'
+require_text 'scripts/bootstrap' 'sync_skill_bundle' 'bootstrap materializes managed skill bundles'
+require_text 'scripts/bootstrap' '.agents/skills' 'bootstrap uses repository portable skill root'
 require_text 'scripts/doctor' 'DSH_AGENTS_HOME' 'doctor supports explicit Agents home'
-require_text 'scripts/doctor' '.agents/skills' 'doctor validates managed Agents skills'
+require_text 'scripts/doctor' 'check_managed_skills' 'doctor validates managed skill lifecycle'
+require_text 'scripts/doctor' '.agents/skills' 'doctor validates repository portable skill root'
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Brazilian Portuguese' 'engineering persona defaults user responses to Brazilian Portuguese'
+require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'load the relevant engineering skills' 'engineering persona directs non-trivial work through relevant skills'
 
 if [ "$failures" -ne 0 ]; then
-  printf '\n%d Phase 3 contract(s) failing. Expected while RED.\n' "$failures" >&2
+  printf '\n%d Phase 3 contract(s) failing.\n' "$failures" >&2
   exit 1
 fi
 
