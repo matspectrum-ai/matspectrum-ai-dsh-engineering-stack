@@ -6,6 +6,7 @@ import {
   nextExpectedSkill,
   preToolDecisionForState,
   advanceSkillState,
+  filterMethodologyChunks,
   validateEngineeringCommit,
   renderEngineeringCommit,
 } from '../profiles/engineering/plugins/methodology-guard.mjs'
@@ -71,6 +72,30 @@ test('successful expected Skill result advances exactly once', () => {
   assert.equal(advanceSkillState(state, { name: 'skill', arguments: { name: 'problem-analysis' } }, { isError: false }), false)
   assert.deepEqual(state.completedSkills, ['problem-analysis'])
   assert.equal(nextExpectedSkill(state), 'verification')
+})
+
+test('methodology output filter suppresses text and reasoning while preserving tool protocol', () => {
+  const chunks = [
+    { type: 'block-start', index: 0, blockType: 'reasoning' },
+    { type: 'reasoning-delta', index: 0, text: 'speculative thought' },
+    { type: 'block-end', index: 0, block: { type: 'reasoning', text: 'speculative thought' } },
+    { type: 'block-start', index: 1, blockType: 'text' },
+    { type: 'text-delta', index: 1, text: 'invented 200 OK' },
+    { type: 'block-end', index: 1, block: { type: 'text', text: 'invented 200 OK' } },
+    { type: 'block-start', index: 2, blockType: 'tool-call' },
+    { type: 'tool-call-delta', index: 2, id: 'call-1', name: 'skill', argumentsDelta: '{"name":"problem-analysis"}' },
+    { type: 'block-end', index: 2, block: { type: 'tool-call', id: 'call-1', name: 'skill', arguments: '{"name":"problem-analysis"}' } },
+    { type: 'usage', usage: { inputTokens: 1, outputTokens: 1 } },
+    { type: 'finish', reason: { kind: 'tool-calls' } },
+  ]
+
+  assert.deepEqual(filterMethodologyChunks(chunks), [
+    { type: 'block-start', index: 2, blockType: 'tool-call' },
+    { type: 'tool-call-delta', index: 2, id: 'call-1', name: 'skill', argumentsDelta: '{"name":"problem-analysis"}' },
+    { type: 'block-end', index: 2, block: { type: 'tool-call', id: 'call-1', name: 'skill', arguments: '{"name":"problem-analysis"}' } },
+    { type: 'usage', usage: { inputTokens: 1, outputTokens: 1 } },
+    { type: 'finish', reason: { kind: 'tool-calls' } },
+  ])
 })
 
 test('engineering commit rejects user evidence absent from activating prompt', async () => {
