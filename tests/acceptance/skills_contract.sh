@@ -71,17 +71,23 @@ require_text 'scripts/doctor' '.agents/skills' 'doctor validates repository port
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Brazilian Portuguese' 'engineering persona defaults user responses to Brazilian Portuguese'
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'load the relevant engineering skills' 'engineering persona directs non-trivial work through relevant skills'
 
-# Anti-speculation gates added after the first real Phase 3 E2E exposed a
-# methodology defect: the agent loaded the right skills but invented health
-# endpoint status codes, auth policy, metrics and dependency behavior without
-# repository or user evidence.
+# Anti-speculation gates added after real Phase 3 E2E exercises. The first
+# exercise exposed invented API behavior; the second exposed subtler scope and
+# toolchain inventions despite otherwise-correct unknown handling.
 require_text '.agents/skills/problem-analysis/SKILL.md' 'Do not invent requirements, defaults, status codes, response schemas, authentication policy, dependencies, observability signals, or failure behavior.' 'problem analysis explicitly forbids invented engineering facts'
 require_text '.agents/skills/specification-driven-development/SKILL.md' 'A specification must not turn an unresolved unknown into a requirement, acceptance criterion, edge case, failure mode, security rule, observability signal, or rollback behavior.' 'SDD forbids promoting unknowns into normative requirements'
 require_text '.agents/skills/specification-driven-development/SKILL.md' 'If evidence is insufficient, keep the field unresolved or omit it and record the decision as an unknown.' 'SDD defines safe behavior when evidence is insufficient'
+require_text '.agents/skills/specification-driven-development/SKILL.md' 'An unresolved or pending decision is not a non-goal.' 'SDD forbids converting pending decisions into scope exclusions'
+require_text '.agents/skills/specification-driven-development/SKILL.md' 'Do not mark a specification implementation-ready while blocking unknowns remain unresolved.' 'SDD requires readiness to reflect blocking unknowns'
 require_text '.agents/skills/test-driven-development/SKILL.md' 'Do not invent the current system response merely to describe RED.' 'TDD forbids invented baseline behavior'
 require_text '.agents/skills/test-driven-development/SKILL.md' 'If the baseline is unknown, describe RED as the specified assertion failing for the missing behavior and defer the exact observed status/body until the test is actually run.' 'TDD defines evidence-safe RED planning'
+require_text '.agents/skills/test-driven-development/SKILL.md' 'Do not invent a test language, framework, runner, helper, file name, package manager, or command when the project test stack is unknown.' 'TDD forbids invented test harness/toolchain'
+require_text '.agents/skills/test-driven-development/SKILL.md' 'Describe planned tests behaviorally until repository evidence identifies the concrete test harness.' 'TDD keeps evidence-starved plans implementation-neutral'
 require_text '.agents/skills/verification/SKILL.md' 'Never classify security, operational, compatibility, data-loss, or rollback risk as zero/none without direct evidence.' 'verification forbids unsupported zero-risk claims'
+require_text '.agents/skills/verification/SKILL.md' 'Do not invent verification commands, package-manager scripts, scanners, CI jobs, or tool names when the repository toolchain is unknown.' 'verification forbids invented verification tooling'
+require_text '.agents/skills/verification/SKILL.md' 'Describe the evidence action abstractly and mark the concrete command UNRESOLVED until discovered.' 'verification keeps concrete commands evidence-backed'
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Never invent engineering requirements or present assumptions as facts.' 'persona enforces anti-speculation at the top level'
+require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Pending decisions remain unknowns, not requirements, non-goals, test harness choices, or verification commands.' 'persona prevents residual scope/toolchain speculation'
 
 if [ "$failures" -ne 0 ]; then
   printf '\n%d Phase 3 contract(s) failing.\n' "$failures" >&2
