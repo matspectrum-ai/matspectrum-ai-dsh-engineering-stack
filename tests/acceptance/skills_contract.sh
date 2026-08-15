@@ -71,6 +71,15 @@ require_text 'scripts/doctor' '.agents/skills' 'doctor validates repository port
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Brazilian Portuguese' 'engineering persona defaults user responses to Brazilian Portuguese'
 require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'load the relevant engineering skills' 'engineering persona directs non-trivial work through relevant skills'
 
+# Anti-speculation gates added after the first real Phase 3 E2E exposed a
+# methodology defect: the agent loaded the right skills but invented health
+# endpoint status codes, auth policy, metrics and dependency behavior without
+# repository or user evidence.
+require_text '.agents/skills/problem-analysis/SKILL.md' 'Do not invent requirements, defaults, status codes, response schemas, authentication policy, dependencies, observability signals, or failure behavior.' 'problem analysis explicitly forbids invented engineering facts'
+require_text '.agents/skills/specification-driven-development/SKILL.md' 'A specification must not turn an unresolved unknown into a requirement, acceptance criterion, edge case, failure mode, security rule, observability signal, or rollback behavior.' 'SDD forbids promoting unknowns into normative requirements'
+require_text '.agents/skills/specification-driven-development/SKILL.md' 'If evidence is insufficient, keep the field unresolved or omit it and record the decision as an unknown.' 'SDD defines safe behavior when evidence is insufficient'
+require_text 'agent-presets/matspectrum-engineering/agent.cordis.yml' 'Never invent engineering requirements or present assumptions as facts.' 'persona enforces anti-speculation at the top level'
+
 if [ "$failures" -ne 0 ]; then
   printf '\n%d Phase 3 contract(s) failing.\n' "$failures" >&2
   exit 1
