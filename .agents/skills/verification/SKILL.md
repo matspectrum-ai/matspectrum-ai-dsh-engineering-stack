@@ -32,6 +32,8 @@ Evidence may include:
 - deployment health check;
 - diff inspection.
 
+Only include evidence categories relevant to the actual specification and failure modes. A generic checklist is not proof that a risk or requirement exists.
+
 ## Verification sequence
 
 1. Re-read specification and contracts.
@@ -40,10 +42,10 @@ Evidence may include:
 4. Run adjacent regression tests.
 5. Run build/type/lint checks required by the repository.
 6. Exercise runtime boundaries that static tests cannot prove.
-7. Test important negative/failure behavior.
+7. Test important negative/failure behavior specified or evidenced for the change.
 8. Verify no secrets or unintended generated artifacts were introduced.
-9. Confirm rollback/recovery behavior if the change is operationally risky.
-10. State residual risks and unverified assumptions.
+9. Confirm rollback/recovery behavior if the change is operationally risky and such behavior is defined.
+10. State residual risks and unverified unknowns without filling gaps by assumption.
 
 ## Runtime evidence rule
 
@@ -58,6 +60,19 @@ Examples:
 - a migration file does not prove production data can migrate safely.
 
 Use the verification layer that matches the failure mode.
+
+## Risk evidence rule
+
+Never classify security, operational, compatibility, data-loss, or rollback risk as zero/none without direct evidence.
+
+When evidence is insufficient:
+
+- use **UNVERIFIED** for the specific claim;
+- state what evidence would be required to classify it;
+- do not substitute generic best practice or intuition for project evidence;
+- do not infer that a planning-only/no-write exercise has zero security risk merely because no files were modified; only the mutation risk from that exercise may be directly low/absent.
+
+Likewise, do not invent authentication policy, dependency behavior, observability signals, rollback procedures, status codes, or error semantics in a verification plan. Verify only what the specification/contracts actually require.
 
 ## Completion classifications
 
@@ -79,7 +94,7 @@ The final report should include:
 - trade-offs;
 - verification performed;
 - known limitations;
-- rollback/recovery notes;
+- rollback/recovery notes when applicable and known;
 - next recommended work.
 
-Keep implementation claims proportional to the evidence actually collected.
+Keep implementation and risk claims proportional to the evidence actually collected.
