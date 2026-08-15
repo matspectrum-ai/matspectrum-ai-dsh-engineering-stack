@@ -16,10 +16,10 @@ No success claim without evidence.
 Map each important acceptance criterion to a concrete verification action and result.
 
 ```text
-Criterion | Evidence | Result | Notes
+Criterion | Evidence action | Concrete command/tool | Result | Notes
 ```
 
-Evidence may include:
+Evidence actions may include:
 
 - focused automated tests;
 - full/regression suite;
@@ -34,18 +34,35 @@ Evidence may include:
 
 Only include evidence categories relevant to the actual specification and failure modes. A generic checklist is not proof that a risk or requirement exists.
 
+## Tooling evidence rule
+
+Verification must use the repository's real toolchain, not a plausible one.
+
+Do not invent verification commands, package-manager scripts, scanners, CI jobs, or tool names when the repository toolchain is unknown.
+
+Describe the evidence action abstractly and mark the concrete command UNRESOLVED until discovered.
+
+Examples:
+
+- Safe with unknown toolchain: `focused route contract test | repository test harness | UNRESOLVED | planned`.
+- Unsafe without evidence: `npm test -- health`, `npm run typecheck`, `npm run security:scan`, `pytest`, or `go test` merely because those commands are common.
+
+Likewise, do not invent file names or CI workflow names. Inspect package manifests, task runners, CI configuration, repository instructions, and existing tests before naming a command.
+
 ## Verification sequence
 
 1. Re-read specification and contracts.
 2. Inspect the final diff for unintended scope.
-3. Run focused tests.
-4. Run adjacent regression tests.
-5. Run build/type/lint checks required by the repository.
+3. Run focused tests using the repository's discovered test command.
+4. Run adjacent regression tests that are actually present/relevant.
+5. Run build/type/lint checks required by the repository, if any.
 6. Exercise runtime boundaries that static tests cannot prove.
 7. Test important negative/failure behavior specified or evidenced for the change.
-8. Verify no secrets or unintended generated artifacts were introduced.
+8. Verify no secrets or unintended generated artifacts were introduced using repository-supported checks or direct diff inspection.
 9. Confirm rollback/recovery behavior if the change is operationally risky and such behavior is defined.
 10. State residual risks and unverified unknowns without filling gaps by assumption.
+
+If any concrete command/tool in steps 3–9 has not been discovered, keep it `UNRESOLVED`; do not substitute a conventional command.
 
 ## Runtime evidence rule
 
@@ -73,6 +90,8 @@ When evidence is insufficient:
 - do not infer that a planning-only/no-write exercise has zero security risk merely because no files were modified; only the mutation risk from that exercise may be directly low/absent.
 
 Likewise, do not invent authentication policy, dependency behavior, observability signals, rollback procedures, status codes, or error semantics in a verification plan. Verify only what the specification/contracts actually require.
+
+Conditional behavior that depends on unresolved design decisions must remain unresolved. Do not populate the current project's verification matrix with examples such as `DB down → degraded`, `auth denied → 401`, or latency thresholds until the specification actually defines those behaviors.
 
 ## Completion classifications
 
