@@ -37,6 +37,21 @@ A valid RED must not fail merely because:
 
 For configuration/infrastructure work, an acceptance script or runtime smoke check can be the RED test.
 
+### RED planning when the baseline is unknown
+
+When planning before the relevant test has actually been run, distinguish the **assertion we intend to make** from the **baseline behavior we have observed**.
+
+Do not invent the current system response merely to describe RED.
+
+If the baseline is unknown, describe RED as the specified assertion failing for the missing behavior and defer the exact observed status/body until the test is actually run.
+
+Examples:
+
+- Safe: "A route-level test for the specified `GET /health` contract should fail before implementation; the exact current HTTP response is unverified until the test/probe runs."
+- Unsafe without evidence: "The RED is `404` with `{\"error\":\"Endpoint not found\"}`."
+
+Never claim a concrete pre-implementation status code, exception, error body, timeout, or dependency failure unless repository/runtime evidence has established it.
+
 ## GREEN
 
 1. Implement the minimum production change that satisfies the failing contract.
@@ -71,7 +86,7 @@ Static composition is not equivalent to runtime loading. If a defect can occur o
 
 ## Required edge coverage
 
-Consider:
+Consider only cases that are relevant to the specification and contracts, such as:
 
 - invalid and empty inputs;
 - boundary values;
@@ -83,6 +98,8 @@ Consider:
 - version/config drift;
 - rollback paths.
 
+A checklist item is not automatically a requirement. Do not create tests for invented behavior solely because it is a common edge case.
+
 ## Anti-patterns
 
 - mocking the behavior being tested instead of its dependencies;
@@ -90,14 +107,18 @@ Consider:
 - snapshot-only tests for critical logic;
 - tests that always pass;
 - skipping the pre-implementation RED run;
-- accepting flaky retries as correctness.
+- accepting flaky retries as correctness;
+- claiming a precise RED result before observing it;
+- writing tests for speculative requirements.
 
 ## Completion evidence
 
 Report:
 
-- RED command and intended failure;
+- RED command and observed intended failure;
 - implementation change;
 - GREEN command/result;
 - regression suite result;
 - remaining untested risk.
+
+If RED has not actually been run yet, label it as **planned RED**, not evidence.
