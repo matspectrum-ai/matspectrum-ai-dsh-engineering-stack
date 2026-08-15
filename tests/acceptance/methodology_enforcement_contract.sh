@@ -31,12 +31,15 @@ require_file 'profiles/engineering/plugins/methodology-guard.mjs' 'native method
 
 require_text 'profiles/engineering/cordis.patch.yml' './plugins/methodology-guard.mjs' 'engineering profile mounts the native methodology guard'
 require_text 'profiles/engineering/plugins/methodology-guard.mjs' "agent/pre-step" 'plugin listens to agent/pre-step'
+require_text 'profiles/engineering/plugins/methodology-guard.mjs' "llm/stream" 'plugin suppresses uncommitted methodology prose at llm/stream'
 require_text 'profiles/engineering/plugins/methodology-guard.mjs' "tools/pre-execute" 'plugin gates tools/pre-execute'
 require_text 'profiles/engineering/plugins/methodology-guard.mjs' "tools/result" 'plugin observes authoritative tools/result'
 require_text 'profiles/engineering/plugins/methodology-guard.mjs' "agent/turn-stopping" 'plugin enforces turn completion gate'
 require_text 'profiles/engineering/plugins/methodology-guard.mjs' "engineering_commit" 'plugin registers engineering_commit tool'
 require_text 'scripts/bootstrap' 'methodology-guard.mjs' 'bootstrap materializes methodology guard'
+require_text 'scripts/bootstrap' 'managed-skills.txt' 'bootstrap materializes runtime managed-Skills manifest'
 require_text 'scripts/doctor' 'methodology-guard.mjs' 'doctor validates methodology guard runtime state'
+require_text 'scripts/doctor' 'managed-skills.txt' 'doctor validates runtime managed-Skills manifest'
 
 if [ -f profiles/engineering/plugins/methodology-guard.mjs ]; then
   if node --test tests/methodology_guard.test.mjs; then
