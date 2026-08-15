@@ -1,0 +1,109 @@
+feature: portable-engineering-skills-library
+status: specified
+schema_version: 1
+
+objectives:
+  - make the engineering methodology available to every DSH workspace without depending on conversation history
+  - keep skill source canonical and reviewable in Git
+  - use the portable Agents-compatible skill root instead of coupling methodology to DSH-only paths
+  - preserve unrelated user skills while making repository-managed skills deterministic
+  - make discovery, drift, and malformed skill state diagnosable
+
+canonical_source:
+  root: .agents/skills
+  bundle_shape: <skill-name>/SKILL.md
+  nested_bundles: forbidden
+  naming: kebab-case
+
+runtime_destination:
+  agents_home_env: DSH_AGENTS_HOME
+  default_agents_home: ~/.agents
+  root: skills
+  effective_path: ${DSH_AGENTS_HOME:-~/.agents}/skills
+
+frontmatter:
+  required:
+    - name
+    - description
+  optional:
+    - whenToUse
+    - metadata
+    - disable-model-invocation
+    - user-invocable
+  policy:
+    name_must_match_directory: true
+    model_invocation_default: true
+    user_invocable_default: true
+
+managed_skills:
+  - problem-analysis
+  - specification-driven-development
+  - contract-driven-development
+  - test-driven-development
+  - architecture
+  - debugging
+  - code-review
+  - security-review
+  - verification
+  - git-workflow
+  - api-design
+  - database-migrations
+  - production-readiness
+  - graph-engineering
+
+methodology_contract:
+  default_pipeline:
+    - problem-analysis
+    - specification-driven-development
+    - contract-driven-development
+    - test-driven-development
+    - implementation
+    - refactor
+    - verification
+    - technical-explanation
+  implementation_gate:
+    requires:
+      - explicit problem analysis
+      - written specification
+      - explicit contracts
+      - failing test evidence when behavior is testable
+  unknowns:
+    policy: explicit-not-guessed
+  verification:
+    policy: evidence-before-claim
+
+bootstrap:
+  idempotent: true
+  unrelated_user_skills: untouched
+  managed_skill_drift:
+    behavior: backup-then-replace
+  destination_permissions: user-owned
+  source_of_truth: repository
+
+doctor:
+  checks:
+    - canonical managed skill files exist
+    - canonical frontmatter parses
+    - canonical names are kebab-case
+    - canonical name matches bundle directory
+    - runtime managed skill files exist
+    - runtime managed skill files match repository canonical state
+    - unrelated skills do not affect stack health
+
+acceptance_criteria:
+  - every managed skill is discoverable under the canonical .agents/skills root
+  - bootstrap materializes every managed skill into the user Agents skill root
+  - bootstrap does not delete unrelated user skill bundles
+  - divergent managed runtime skills are backed up before replacement
+  - doctor fails on missing or drifted managed runtime skills
+  - doctor fails on malformed canonical required frontmatter
+  - repeated bootstrap is idempotent
+  - no skill contains credentials or host-specific absolute paths
+  - engineering agent persona tells the model to answer in Brazilian Portuguese unless the user explicitly requests another language
+
+non_goals:
+  - implement LSP integration
+  - implement MCP servers
+  - implement graph orchestration runtime
+  - store project-specific business rules in global skills
+  - overwrite unrelated user-owned skill names
