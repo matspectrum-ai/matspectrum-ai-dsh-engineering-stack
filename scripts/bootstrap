@@ -100,9 +100,13 @@ PRESET_DST="$DSH_HOME/.agent-presets/matspectrum-engineering"
 SKILLS_MANIFEST="$ROOT/manifests/managed-skills.txt"
 SKILLS_SRC="$ROOT/.agents/skills"
 SKILLS_DST="$DSH_AGENTS_HOME/skills"
+METHODOLOGY_PLUGIN_SRC="$PROFILE_SRC/plugins/methodology-guard.mjs"
+METHODOLOGY_PLUGIN_DST="$PROFILE_DST/plugins/methodology-guard.mjs"
+PROFILE_SKILLS_MANIFEST_DST="$PROFILE_DST/managed-skills.txt"
 
 [ -f "$SKILLS_MANIFEST" ] || fail "managed skills manifest missing: $SKILLS_MANIFEST"
-mkdir -p "$PROFILE_DST" "$PRESET_DST" "$SKILLS_DST"
+[ -f "$METHODOLOGY_PLUGIN_SRC" ] || fail "canonical methodology guard missing: $METHODOLOGY_PLUGIN_SRC"
+mkdir -p "$PROFILE_DST" "$PROFILE_DST/plugins" "$PRESET_DST" "$SKILLS_DST"
 chmod 700 "$PRESET_DST"
 
 STAMP=$(date +%Y%m%d-%H%M%S)
@@ -165,6 +169,9 @@ info "materializing canonical engineering profile into $PROFILE_DST"
 for name in package.json cordis.patch.yml pnpm-workspace.yaml; do
   sync_runtime_file "$PROFILE_SRC/$name" "$PROFILE_DST/$name" "profile-$name" "profile file"
 done
+sync_runtime_file "$METHODOLOGY_PLUGIN_SRC" "$METHODOLOGY_PLUGIN_DST" 'profile-methodology-guard.mjs' 'methodology guard'
+sync_runtime_file "$SKILLS_MANIFEST" "$PROFILE_SKILLS_MANIFEST_DST" 'profile-managed-skills.txt' 'profile managed-Skills manifest'
+chmod 600 "$METHODOLOGY_PLUGIN_DST" "$PROFILE_SKILLS_MANIFEST_DST"
 
 PROFILE_NODE_MODULES_SRC="$PROFILE_SRC/node_modules"
 PROFILE_NODE_MODULES_DST="$PROFILE_DST/node_modules"
