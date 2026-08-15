@@ -7,7 +7,7 @@ objectives:
   - keep skill source canonical and reviewable in Git
   - use the portable Agents-compatible skill root instead of coupling methodology to DSH-only paths
   - preserve unrelated user skills while making repository-managed skills deterministic
-  - make discovery, drift, and malformed skill state diagnosable
+  - make discovery, drift, malformed skill state, and explicit skill-load failures diagnosable
 
 canonical_source:
   root: .agents/skills
@@ -61,6 +61,19 @@ methodology_contract:
     - refactor
     - verification
     - technical-explanation
+  explicit_skill_request_preflight:
+    trigger: user-explicitly-names-one-or-more-skills-to-load
+    ordering: preserve-user-requested-order
+    before_task_actions: true
+    success_condition: every-requested-skill-has-successful-skill-tool-result
+    failure_condition: any-requested-skill-call-fails-or-is-not-available
+    failure_behavior:
+      - stop-before-substantive-task-output
+      - report-the-exact-skill-that-failed
+      - do-not-claim-all-skills-loaded
+    reporting:
+      loaded_skill_claim_requires_tool_evidence: true
+      unavailable_skill_claim_requires-tool-error: true
   implementation_gate:
     requires:
       - explicit problem analysis
@@ -100,6 +113,8 @@ acceptance_criteria:
   - repeated bootstrap is idempotent
   - no skill contains credentials or host-specific absolute paths
   - engineering agent persona tells the model to answer in Brazilian Portuguese unless the user explicitly requests another language
+  - engineering agent persona treats explicitly named Skills as mandatory preconditions before substantive task work
+  - engineering agent persona forbids claiming a Skill was loaded without a successful corresponding tool result
 
 non_goals:
   - implement LSP integration
