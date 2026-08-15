@@ -1,7 +1,11 @@
 {
   "name": "dsh-profile-engineering",
   "private": true,
-  "dependencies": {},
+  "dependencies": {
+    "@deepseek-ai/dsh-terminal": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-terminal-bash": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-tool-terminal": "0.1.0-rc.6"
+  },
   "dsh": {
     "profile": {
       "bundles": [

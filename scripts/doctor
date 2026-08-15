@@ -4,9 +4,7 @@ set -eu
 SCRIPT_PATH=$0
 if command -v readlink >/dev/null 2>&1; then
   resolved=$(readlink -f "$SCRIPT_PATH" 2>/dev/null || true)
-  if [ -n "$resolved" ]; then
-    SCRIPT_PATH=$resolved
-  fi
+  if [ -n "$resolved" ]; then SCRIPT_PATH=$resolved; fi
 fi
 SCRIPT_DIR=$(CDPATH= cd "$(dirname "$SCRIPT_PATH")" && pwd)
 ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
@@ -14,22 +12,81 @@ ROOT=$(CDPATH= cd "$SCRIPT_DIR/.." && pwd)
 failures=0
 warnings=0
 
-pass() {
-  printf 'PASS: %s\n' "$1"
+pass() { printf 'PASS: %s\n' "$1"; }
+warn() { printf 'WARN: %s\n' "$1" >&2; warnings=$((warnings + 1)); }
+fail() { printf 'FAIL: %s\n' "$1" >&2; failures=$((failures + 1)); }
+check_command() { command -v "$1" >/dev/null 2>&1; }
+
+run_quiet_probe() {
+  if check_command timeout; then
+    timeout 20 "$@" >/dev/null 2>&1
+  else
+    "$@" >/dev/null 2>&1
+  fi
 }
 
-warn() {
-  printf 'WARN: %s\n' "$1" >&2
-  warnings=$((warnings + 1))
+check_optional_cli_auth() {
+  cli=$1
+  label=$2
+  shift 2
+
+  if ! check_command "$cli"; then
+    warn "$label CLI is not installed"
+    return
+  fi
+
+  if run_quiet_probe "$@"; then
+    pass "$label CLI is installed and authentication is verified"
+  else
+    warn "$label CLI is installed, but authentication could not be verified non-interactively"
+  fi
 }
 
-fail() {
-  printf 'FAIL: %s\n' "$1" >&2
-  failures=$((failures + 1))
-}
+check_omniroute() {
+  endpoint='http://127.0.0.1:20128/v1/models'
 
-check_command() {
-  command -v "$1" >/dev/null 2>&1
+  if [ -z "${OMNIROUTE_API_KEY:-}" ]; then
+    warn 'OMNIROUTE_API_KEY is not defined; OmniRoute end-to-end validation is unavailable'
+    return
+  fi
+
+  if ! check_command curl; then
+    warn 'curl is not installed; OmniRoute endpoint cannot be validated'
+    return
+  fi
+
+  tmp=$(mktemp)
+  if ! curl -fsS --connect-timeout 2 --max-time 10 \
+    -H "Authorization: Bearer $OMNIROUTE_API_KEY" \
+    "$endpoint" >"$tmp" 2>/dev/null; then
+    rm -f "$tmp"
+    warn 'OmniRoute is configured but http://127.0.0.1:20128/v1/models is unreachable or rejected the credential'
+    return
+  fi
+
+  pass 'OmniRoute local /v1/models endpoint is reachable with the configured credential'
+
+  if ! node -e 'const fs=require("fs"); try { const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.exit(Array.isArray(v.data)?0:1) } catch { process.exit(1) }' "$tmp"; then
+    rm -f "$tmp"
+    warn 'OmniRoute /v1/models did not return the expected OpenAI-compatible JSON catalog'
+    return
+  fi
+
+  pass 'OmniRoute model catalog is valid OpenAI-compatible JSON'
+
+  if node -e 'const fs=require("fs"); const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const ids=new Set(v.data.map(x=>x&&x.id)); process.exit(ids.has("auto/best-coding")?0:1)' "$tmp"; then
+    pass 'OmniRoute advertises the default auto/best-coding route'
+  else
+    fail 'OmniRoute is reachable but the required default auto/best-coding route is missing'
+  fi
+
+  if node -e 'const fs=require("fs"); const v=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const ids=new Set(v.data.map(x=>x&&x.id)); process.exit(ids.has("auto/coding:reliable")?0:1)' "$tmp"; then
+    pass 'OmniRoute advertises the auto/coding:reliable fallback route'
+  else
+    warn 'OmniRoute does not currently advertise the auto/coding:reliable fallback route'
+  fi
+
+  rm -f "$tmp"
 }
 
 printf '%s\n' 'DSH Engineering Stack Doctor'
@@ -79,6 +136,9 @@ fi
 DSH_HOME=${DSH_HOME:-"$HOME/.dsh"}
 PROFILE_SRC="$ROOT/profiles/engineering"
 PROFILE_DST="$DSH_HOME/profiles/engineering"
+PRESET_SRC="$ROOT/agent-presets/matspectrum-engineering"
+PRESET_DST="$DSH_HOME/.agent-presets/matspectrum-engineering"
+PROFILE_RUNTIME_PACKAGES='@deepseek-ai/dsh-terminal @deepseek-ai/dsh-terminal-bash @deepseek-ai/dsh-tool-terminal'
 
 for name in package.json cordis.patch.yml pnpm-workspace.yaml; do
   if [ ! -f "$PROFILE_DST/$name" ]; then
@@ -90,16 +150,75 @@ for name in package.json cordis.patch.yml pnpm-workspace.yaml; do
   fi
 done
 
+PROFILE_NODE_MODULES_SRC="$PROFILE_SRC/node_modules"
+PROFILE_NODE_MODULES_DST="$PROFILE_DST/node_modules"
+if [ -L "$PROFILE_NODE_MODULES_DST" ]; then
+  installed_modules=$(readlink -f "$PROFILE_NODE_MODULES_DST" 2>/dev/null || true)
+  canonical_modules=$(readlink -f "$PROFILE_NODE_MODULES_SRC" 2>/dev/null || true)
+  if [ -n "$installed_modules" ] && [ "$installed_modules" = "$canonical_modules" ]; then
+    pass 'engineering profile node_modules points to the canonical locked workspace graph'
+  else
+    fail 'engineering profile node_modules link points somewhere else'
+  fi
+else
+  fail 'engineering profile node_modules is not the managed runtime link'
+fi
+
+# Unlike --dump-config, these probes actually exercise Node package resolution
+# from the same profile directory used when DSH mounts a user-owned agent preset.
+for pkg in $PROFILE_RUNTIME_PACKAGES; do
+  if (cd "$PROFILE_DST" && node --input-type=module -e 'await import(process.argv[1])' "$pkg") >/dev/null 2>&1; then
+    pass "profile runtime dependency imports successfully: $pkg"
+  else
+    fail "profile runtime dependency cannot be imported from engineering profile: $pkg"
+  fi
+done
+
+for name in agent.cordis.yml preset.yml; do
+  if [ ! -f "$PRESET_DST/$name" ]; then
+    fail "runtime agent preset file missing: $PRESET_DST/$name"
+  elif cmp -s "$PRESET_SRC/$name" "$PRESET_DST/$name"; then
+    pass "runtime matspectrum-engineering preset $name matches repository canonical state"
+  else
+    fail "runtime matspectrum-engineering preset $name has drifted from repository canonical state"
+  fi
+done
+
 if [ -x "$DSH_BIN" ] && [ -f "$PROFILE_DST/package.json" ]; then
   DUMP_FILE=$(mktemp)
   DUMP_ERR=$(mktemp)
   trap 'rm -f "$DUMP_FILE" "$DUMP_ERR"' EXIT HUP INT TERM
   if DSH_HOME="$DSH_HOME" "$DSH_BIN" --profile engineering --dump-config >"$DUMP_FILE" 2>"$DUMP_ERR"; then
     pass 'engineering profile composes successfully'
+
     if grep -Fq 'web-startup' "$DUMP_FILE" || grep -Fq '@deepseek-ai/dsh-web-app' "$DUMP_FILE"; then
       pass 'official DSH Web UI surface is present in the composed profile'
     else
       fail 'composed engineering profile does not expose the expected Web UI surface'
+    fi
+
+    if grep -Fq '@deepseek-ai/dsh-terminal' "$DUMP_FILE"; then
+      pass 'persistent terminal registry is present in the composed profile'
+    else
+      fail 'persistent terminal registry is missing from the composed profile'
+    fi
+
+    if grep -Fq '@deepseek-ai/dsh-terminal-bash' "$DUMP_FILE"; then
+      pass 'local Bash PTY backend is present in the composed profile'
+    else
+      fail 'local Bash PTY backend is missing from the composed profile'
+    fi
+
+    if grep -Fq 'matspectrum-engineering' "$DUMP_FILE"; then
+      pass 'matspectrum-engineering is selected by the engineering profile'
+    else
+      fail 'matspectrum-engineering default preset is missing from the composed profile'
+    fi
+
+    if grep -Fq 'provider: omniroute' "$DUMP_FILE" && grep -Fq 'model: auto/best-coding' "$DUMP_FILE"; then
+      pass 'OmniRoute auto/best-coding is the composed default model route'
+    else
+      fail 'composed engineering profile does not select OmniRoute auto/best-coding by default'
     fi
   else
     fail "engineering profile does not compose: $(tr '\n' ' ' < "$DUMP_ERR")"
@@ -129,17 +248,14 @@ else
   fail 'git is required for the engineering stack'
 fi
 
-for optional_cli in gh supabase vercel; do
-  if check_command "$optional_cli"; then
-    pass "$optional_cli CLI is available"
-  else
-    warn "$optional_cli CLI is not installed yet"
-  fi
-done
+# Presence and authentication are deliberately separate states. Probe output is
+# discarded so tokens, account metadata, or project names never enter doctor logs.
+check_optional_cli_auth gh 'GitHub' gh auth status
+check_optional_cli_auth supabase 'Supabase' supabase projects list
+check_optional_cli_auth vercel 'Vercel' vercel whoami
+
+check_omniroute
 
 printf '\nSummary: %d failure(s), %d warning(s).\n' "$failures" "$warnings"
-if [ "$failures" -ne 0 ]; then
-  exit 1
-fi
-
+if [ "$failures" -ne 0 ]; then exit 1; fi
 exit 0

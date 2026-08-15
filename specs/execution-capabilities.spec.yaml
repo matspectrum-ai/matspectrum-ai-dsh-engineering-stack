@@ -1,0 +1,140 @@
+feature: execution-capabilities
+status: draft
+schema_version: 1
+
+problem:
+  statement: >-
+    The validated Web runtime can boot the shipped standard coding preset, but the
+    engineering stack has not yet made shell, external CLI, background-job, and
+    persistent terminal behavior an explicit versioned contract. The shipped
+    standard preset already exposes one-shot bash and jobs; persistent PTY tools
+    are intentionally opt-in upstream.
+  evidence:
+    - shipped standard preset mounts @deepseek-ai/dsh-tool-bash on non-Windows hosts
+    - shipped standard preset mounts @deepseek-ai/dsh-tool-jobs
+    - persistent terminal capability requires dsh-terminal, dsh-terminal-bash, and dsh-tool-terminal
+    - upstream terminal guidance explicitly prefers one-shot shell for bounded work and PTY for persistent or interactive work
+
+objectives:
+  - preserve one-shot bash as the default tool for bounded deterministic commands
+  - add explicit persistent PTY capability for stateful and interactive terminal work
+  - make Git, GitHub CLI, Supabase CLI, and Vercel CLI observable capabilities
+  - preserve workspace-write plus approval as the default permission boundary
+  - keep background jobs owner-scoped and observable
+  - make the complete agent execution composition repository-owned and reproducible
+
+architecture:
+  agent_preset:
+    id: matspectrum-engineering
+    ownership: repository
+    baseline: upstream-standard-preset
+    strategy: versioned-full-composition
+    rationale: >-
+      Web sessions move model-facing tools behind agent presets. Extending terminal
+      capabilities in the profile host plane would violate that ownership seam.
+      The stack therefore owns a full engineering preset derived from the pinned
+      upstream standard preset and audits drift whenever DSH is upgraded.
+  host_plane:
+    required_services:
+      - subprocess
+      - sandbox
+      - sandbox-policy
+      - approval
+      - permission
+      - shell-env
+      - jobs
+      - terminal-registry
+      - terminal-bash-backend
+  agent_plane:
+    required_tools:
+      - bash
+      - job_output
+      - job_list
+      - job_kill
+      - terminal_open
+      - terminal_send
+      - terminal_read
+      - terminal_signal
+      - terminal_close
+      - terminal_list
+
+requirements:
+  one_shot_shell:
+    - retain @deepseek-ai/dsh-tool-bash on Linux
+    - retain sandbox-backed execution
+    - retain background execution integration with jobs
+    - do not replace bounded one-shot bash with persistent bash globally
+  persistent_terminal:
+    - register @deepseek-ai/dsh-terminal in the host composition
+    - register @deepseek-ai/dsh-terminal-bash as the local PTY backend
+    - expose @deepseek-ai/dsh-tool-terminal only through the canonical engineering agent preset
+    - keep terminal ownership scoped to the exact initiating Agent
+    - preserve job integration for terminal background sends
+    - require terminal sessions to be explicitly closed when no longer needed
+  external_clis:
+    git:
+      required: true
+      authentication_required: false
+    gh:
+      required: false
+      authentication_check: required
+    supabase:
+      required: false
+      authentication_check: required
+    vercel:
+      required: false
+      authentication_check: required
+    rules:
+      - executable presence and authentication are separate states
+      - doctor must not claim authenticated merely because an executable exists
+      - no production token is stored in Git
+  permissions:
+    default_mode: workspace-write
+    approval: ask
+    global_danger_full_access: false
+    requirements:
+      - destructive or out-of-bound effects remain approval-controlled
+      - PTY does not bypass sandbox or permission policy
+  observability:
+    - doctor reports shell capability separately from external CLI capability
+    - doctor reports each CLI as missing, installed-unauthenticated, or authenticated when detectable
+    - terminal startup and composition failures are fail-loud
+    - background jobs remain listable and cancellable
+
+acceptance_criteria:
+  - canonical matspectrum-engineering preset is versioned in the repository
+  - engineering profile discovers the repository-owned preset
+  - matspectrum-engineering is the default preset for newly created engineering sessions
+  - composed profile contains the terminal registry and local terminal backend
+  - canonical preset retains one-shot bash
+  - canonical preset exposes all six terminal tools
+  - canonical preset retains job controls
+  - doctor proves Git executable presence
+  - doctor distinguishes gh executable presence from gh authentication
+  - doctor distinguishes Supabase executable presence from Supabase authentication
+  - doctor distinguishes Vercel executable presence from Vercel authentication
+  - no credential value appears in repository-managed configuration
+  - Web UI boots after the execution capability composition is applied
+  - a real agent session can execute a bounded one-shot command
+  - a real agent session can open a PTY, persist cwd or environment state across sends, then close it
+
+edge_cases:
+  - node-pty native module fails to load
+  - PTY shell exits unexpectedly
+  - terminal send times out with uncertain foreground process state
+  - process remains alive after UI session closes
+  - CLI exists but has expired credentials
+  - CLI uses browser/device authentication and cannot be verified non-interactively
+  - command requires network access while sandbox or host policy blocks it
+  - command writes outside workspace and triggers approval
+  - background job is cancelled while producing output
+  - upstream standard preset changes after a DSH upgrade
+  - custom preset becomes unloadable due to upstream package rename
+
+non_goals:
+  - granting unrestricted host access by default
+  - replacing all shell execution with PTY
+  - storing CLI access tokens in repository files
+  - configuring MCP servers in this phase
+  - adding project engineering Skills in this phase
+  - defining SDD/TDD governance in this phase
